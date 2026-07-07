@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Briefing</title>
+<meta name="theme-color" content="#111318">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #16181d;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #2563eb;
+    --chip-bg: #ffffff;
+    --chip-active: #16181d;
+    --chip-active-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111318;
+      --card: #1a1d24;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --border: #2a2e37;
+      --accent: #60a5fa;
+      --chip-bg: #1a1d24;
+      --chip-active: #e8eaed;
+      --chip-active-text: #111318;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .meta-line { font-size: 12px; color: var(--muted); }
+  .controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  #refresh, #searchBtn {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    font-size: 17px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sort {
+    display: flex;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .sort button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 13px;
+    cursor: pointer;
+  }
+  .sort button.active {
+    background: var(--chip-active);
+    color: var(--chip-active-text);
+  }
+  .hot { color: #f59e0b; font-weight: 700; }
+  .item.read { opacity: 0.55; }
+  .mainlink { display: block; text-decoration: none; color: inherit; }
+  .share {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    padding: 0 6px;
+    cursor: pointer;
+  }
+  #search {
+    display: none;
+    width: 100%;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 15px;
+    -webkit-appearance: none;
+  }
+  header.searching #search { display: block; }
+  .expand {
+    margin-left: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    padding: 0 6px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .item.open .expand { transform: rotate(180deg); }
+  .desc {
+    display: none;
+    margin-top: 8px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .item.open .desc { display: block; }
+  .alts { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .alts a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    margin: 14px 0;
+  }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  #refresh.spinning { animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 0 12px;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .chip {
+    border: 1px solid var(--border);
+    background: var(--chip-bg);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chip.active {
+    background: var(--chip-active);
+    color: var(--chip-active-text);
+    border-color: var(--chip-active);
+  }
+  main { padding: 4px 16px 40px; max-width: 640px; margin: 0 auto; }
+  .item {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 13px 14px;
+    margin-bottom: 10px;
+  }
+  .item:active { opacity: 0.7; }
+  .item .src {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 5px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .item .src .ago { color: var(--muted); font-weight: 400; }
+  .item h2 {
+    font-size: 15.5px;
+    font-weight: 600;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  #status {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 30px 20px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="topbar">
+    <div>
+      <h1>Briefing</h1>
+      <div class="meta-line" id="updated"></div>
+    </div>
+    <div class="controls">
+      <div class="sort" id="sort">
+        <button data-mode="top" class="active">Top</button>
+        <button data-mode="new">New</button>
+      </div>
+      <button id="searchBtn" title="Search" aria-label="Search">&#8981;</button>
+      <button id="refresh" title="Refresh" aria-label="Refresh">&#8635;</button>
+    </div>
+  </div>
+  <nav id="tabs"></nav>
+  <input id="search" type="search" placeholder="Search headlines…" autocomplete="off">
+</header>
+<main>
+  <div id="list"></div>
+  <div id="status">Loading headlines…</div>
+</main>
+<script>
+const CATS = [
+  { id: 'all',      label: 'All' },
+  { id: 'world',    label: 'World' },
+  { id: 'tech',     label: 'Tech & AI' },
+  { id: 'startups', label: 'Startups' },
+  { id: 'business', label: 'Business' },
+  { id: 'brasil',   label: 'Brasil' },
+];
+
+const FEEDS = [
+  { name: 'Al Jazeera',     cat: 'world',    color: '#fa9000', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
+  { name: 'BBC World',      cat: 'world',    color: '#bb1919', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { name: 'CNN World',      cat: 'world',    color: '#cc0000', url: 'http://rss.cnn.com/rss/edition_world.rss' },
+  { name: 'TechCrunch',     cat: 'tech',     color: '#0a9e01', url: 'https://techcrunch.com/feed/' },
+  { name: 'The Verge',      cat: 'tech',     color: '#5200ff', url: 'https://www.theverge.com/rss/index.xml' },
+  { name: 'Ars Technica',   cat: 'tech',     color: '#ff4e00', url: 'https://feeds.arstechnica.com/arstechnica/index' },
+  { name: 'Hacker News',    cat: 'tech',     color: '#ff6600', url: 'https://hnrss.org/frontpage' },
+  { name: 'TC Startups',    cat: 'startups', color: '#0a9e01', url: 'https://techcrunch.com/category/startups/feed/' },
+  { name: 'Crunchbase',     cat: 'startups', color: '#146aff', url: 'https://news.crunchbase.com/feed/' },
+  { name: 'Startupi',       cat: 'startups', color: '#7c3aed', url: 'https://startupi.com.br/feed/' },
+  { name: 'NeoFeed',        cat: 'startups', color: '#0ea5e9', url: 'https://neofeed.com.br/feed/' },
+  { name: 'Startups.com.br',cat: 'startups', color: '#f43f5e', url: 'https://startups.com.br/feed/' },
+  { name: 'BBC Business',   cat: 'business', color: '#8f26ff', url: 'https://feeds.bbci.co.uk/news/business/rss.xml' },
+  { name: 'CNBC',           cat: 'business', color: '#005594', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147' },
+  { name: 'Brazil Journal', cat: 'business', color: '#0f766e', url: 'https://braziljournal.com/feed/' },
+  { name: 'InfoMoney',      cat: 'business', color: '#ff8700', url: 'https://www.infomoney.com.br/feed/', skip: /\/(esportes|consumo|mundo|politica|cultura|turismo|saude)\// },
+  { name: 'Bloomberg Línea',cat: 'business', color: '#84cc16', url: 'https://www.bloomberglinea.com.br/arc/outboundfeeds/rss/?outputType=xml' },
+  { name: 'Money Times',    cat: 'business', color: '#eab308', url: 'https://www.moneytimes.com.br/feed/' },
+  { name: 'MarketWatch',    cat: 'business', color: '#00ac4e', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
+  { name: 'G1 São Paulo',   cat: 'brasil',   color: '#c4170c', url: 'https://g1.globo.com/rss/g1/sao-paulo/' },
+  { name: 'G1 Política',    cat: 'brasil',   color: '#c4170c', url: 'https://g1.globo.com/rss/g1/politica/' },
+  { name: 'G1 Economia',    cat: 'brasil',   color: '#c4170c', url: 'https://g1.globo.com/rss/g1/economia/' },
+  { name: 'Agência Brasil', cat: 'brasil',   color: '#1351b4', url: 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml' },
+  { name: 'CNN Brasil',     cat: 'brasil',   color: '#cc0000', url: 'https://www.cnnbrasil.com.br/feed/', skip: /\/(esportes|internacional|entretenimento)\// },
+  { name: 'Estadão',        cat: 'brasil',   color: '#1e5aa8', url: 'https://www.estadao.com.br/arc/outboundfeeds/feeds/rss/sections/geral/?outputType=xml' },
+];
+
+// Set this to your Cloudflare Worker URL after deploying worker.js (e.g. 'https://briefing-proxy.<you>.workers.dev').
+// It then becomes the primary relay, with the public proxies kept as fallback.
+const MY_PROXY = '';
+
+const PROXIES = [
+  ...(MY_PROXY ? [u => MY_PROXY.replace(/\/$/, '') + '/?url=' + encodeURIComponent(u)] : []),
+  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+];
+
+const MAX_PER_FEED = 15;
+const CACHE_KEY = 'briefing-cache-v9';
+
+let items = [];
+let activeCat = 'all';
+let sortMode = localStorage.getItem('briefing-sort') || 'top';
+
+// Personalization state: which links were read, which title keywords the user taps most.
+let taste = {};
+let read = new Set();
+try { taste = JSON.parse(localStorage.getItem('briefing-taste')) || {}; } catch (e) {}
+try { read = new Set(JSON.parse(localStorage.getItem('briefing-read')) || []); } catch (e) {}
+
+// "Caught up" marker: when did the previous visit happen (stable across reloads within a session).
+let lastVisit = 0;
+try {
+  if (sessionStorage.getItem('briefing-lastvisit') == null) {
+    lastVisit = +localStorage.getItem('briefing-last-open') || 0;
+    sessionStorage.setItem('briefing-lastvisit', lastVisit);
+    localStorage.setItem('briefing-last-open', Date.now());
+  } else {
+    lastVisit = +sessionStorage.getItem('briefing-lastvisit');
+  }
+} catch (e) {}
+
+const STOP = new Set(('about,after,amid,among,been,before,being,between,could,every,first,from,have,here,inside,' +
+  'into,just,like,made,make,more,most,much,near,news,over,report,said,says,share,should,some,such,than,that,' +
+  'their,them,then,there,these,they,this,today,under,until,were,what,when,where,which,while,will,with,would,' +
+  'your,year,years,live,watch,video,photos,update,updates,analysis,opinion,agora,ainda,antes,apos,aqui,assim,' +
+  'cada,como,contra,depois,desde,dessa,desse,desta,deste,dizem,eles,entre,essa,esse,esta,este,fala,fazem,' +
+  'foram,hoje,mais,mesmo,muito,nesta,neste,nova,novo,onde,para,pela,pelo,pode,podem,porque,quais,qual,quando,' +
+  'quem,saiba,sera,tem,ter,uma,umas,veja,voce,anos,entenda,confira,artigo,assista').split(','));
+
+function tokens(title) {
+  return [...new Set(title.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !/^\d+$/.test(w) && !STOP.has(w)))];
+}
+
+// Cluster stories covered by multiple outlets (>=3 shared title keywords) and score every item.
+function rank() {
+  const brand = s => s.startsWith('G1') ? 'G1' : s.startsWith('BBC') ? 'BBC' : s === 'TC Startups' ? 'TechCrunch' : s;
+  items.forEach(i => { i.tk = tokens(i.title); i.brand = brand(i.src); });
+
+  const parent = items.map((_, i) => i);
+  const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+
+  const tokenMap = new Map();
+  items.forEach((it, i) => it.tk.forEach(t => {
+    if (!tokenMap.has(t)) tokenMap.set(t, []);
+    tokenMap.get(t).push(i);
+  }));
+  const pairs = new Map();
+  for (const arr of tokenMap.values()) {
+    if (arr.length < 2 || arr.length > 25) continue; // ignore tokens too common to mean one story
+    for (let a = 0; a < arr.length; a++)
+      for (let b = a + 1; b < arr.length; b++) {
+        const k = arr[a] * 100000 + arr[b];
+        pairs.set(k, (pairs.get(k) || 0) + 1);
+      }
+  }
+  pairs.forEach((n, k) => { if (n >= 3) parent[find(Math.floor(k / 100000))] = find(k % 100000); });
+
+  const clusterBrands = new Map();
+  items.forEach((it, i) => {
+    const r = find(i);
+    if (!clusterBrands.has(r)) clusterBrands.set(r, new Set());
+    clusterBrands.get(r).add(it.brand);
+  });
+  items.forEach((it, i) => { it.srcN = clusterBrands.get(find(i)).size; it.cid = find(i); });
+
+  items.forEach(it => {
+    const hours = Math.max(0, (Date.now() - it.ts) / 3600e3);
+    let s = Math.exp(-hours / 9);                          // freshness: ~6h half-life
+    s *= 1 + 0.6 * Math.min(3, it.srcN - 1);               // importance: multi-outlet coverage
+    s *= 1 + 0.15 * (1 - Math.min(it.pos ?? 0, 15) / 15);  // importance: position in the feed
+    if (/breaking|urgente|ao vivo|exclusiv/i.test(it.title)) s *= 1.25;
+    let interest = 0;
+    it.tk.forEach(t => { if (taste[t]) interest += Math.min(taste[t], 4); });
+    s *= 1 + Math.min(0.5, interest * 0.04);               // performance: what you actually read
+    it.score = s;
+  });
+}
+
+const $list = document.getElementById('list');
+const $status = document.getElementById('status');
+const $updated = document.getElementById('updated');
+const $refresh = document.getElementById('refresh');
+const $tabs = document.getElementById('tabs');
+const $search = document.getElementById('search');
+let lastFetch = 0;
+
+CATS.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'chip' + (c.id === activeCat ? ' active' : '');
+  b.textContent = c.label;
+  b.onclick = () => {
+    activeCat = c.id;
+    document.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
+    b.classList.add('active');
+    render();
+  };
+  $tabs.appendChild(b);
+});
+
+function timeAgo(ts) {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return 'now';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
+
+async function fetchFeed(feed) {
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy(feed.url), { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      if (doc.querySelector('parsererror')) continue;
+      // RSS <item> or Atom <entry>
+      const nodes = [...doc.querySelectorAll('item, entry')].slice(0, MAX_PER_FEED);
+      return nodes.map((n, pos) => {
+        const title = n.querySelector('title')?.textContent?.trim();
+        let link = n.querySelector('link')?.getAttribute('href') // Atom
+                || n.querySelector('link')?.textContent?.trim();  // RSS
+        const dateStr = n.querySelector('pubDate, published, updated')?.textContent;
+        const ts = dateStr ? Date.parse(dateStr) : Date.now();
+        if (feed.skip && link && feed.skip.test(link)) return null;
+        let desc = n.querySelector('description, summary')?.textContent || '';
+        desc = desc.replace(/<[^>]+>/g, ' ')
+          .replace(/&(#8217|#x27|#39|rsquo|apos);/g, '’')
+          .replace(/&(#8220|#8221|ldquo|rdquo|quot);/g, '"')
+          .replace(/&(#8211|#8212|ndash|mdash);/g, '–')
+          .replace(/&amp;/g, '&')
+          .replace(/&#?\w+;/g, ' ')
+          .replace(/\s+/g, ' ').trim().slice(0, 280);
+        if (/^(article url|comments url|points)/i.test(desc) || desc === title) desc = ''; // drop boilerplate (e.g. Hacker News)
+        return title && link ? { title, link, desc, ts: isNaN(ts) ? Date.now() : ts, src: feed.name, cat: feed.cat, color: feed.color, pos } : null;
+      }).filter(Boolean);
+    } catch (e) { /* try next proxy */ }
+  }
+  return [];
+}
+
+function render() {
+  const q = ($search.value || '').trim().toLowerCase();
+  const visible = items.filter(i => (activeCat === 'all' || i.cat === activeCat) &&
+    (!q || (i.title + ' ' + (i.desc || '') + ' ' + i.src).toLowerCase().includes(q)));
+
+  // One card per story: group clustered items, lead with the best, link the other outlets.
+  const groups = new Map();
+  visible.forEach(i => {
+    const k = i.cid != null ? 'c' + i.cid : i.link;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(i);
+  });
+  const byMode = sortMode === 'top' ? (a, b) => b.score - a.score : (a, b) => b.ts - a.ts;
+  const cards = [...groups.values()].map(g => {
+    g.sort(byMode);
+    const main = g[0];
+    const brands = new Set([main.brand]);
+    const alts = g.slice(1).filter(x => x.link !== main.link && !brands.has(x.brand) && brands.add(x.brand)).slice(0, 3);
+    return { main, alts };
+  }).sort((a, b) => byMode(a.main, b.main));
+
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const attr = s => s.replace(/"/g, '&quot;');
+  let html = '';
+  let divided = false;
+  cards.forEach(c => {
+    const i = c.main;
+    if (sortMode === 'new' && !q && !divided && lastVisit && i.ts <= lastVisit && html) {
+      html += '<div class="divider">you’re caught up — older news below</div>';
+      divided = true;
+    }
+    html += `
+    <div class="item${read.has(i.link) ? ' read' : ''}">
+      <a class="mainlink" href="${attr(i.link)}" target="_blank" rel="noopener">
+        <div class="src"><span class="dot" style="background:${i.color}"></span>${i.src} <span class="ago">· ${timeAgo(i.ts)}</span>${i.srcN > 1 ? ` <span class="hot">🔥 ${i.srcN} outlets</span>` : ''}<button class="share" aria-label="Share">⤴</button>${i.desc ? '<button class="expand" aria-label="Show summary">⌄</button>' : ''}</div>
+        <h2>${esc(i.title)}</h2>
+      </a>
+      ${i.desc ? `<div class="desc">${esc(i.desc)}</div>` : ''}
+      ${c.alts.length ? `<div class="alts">also on ${c.alts.map(x => `<a href="${attr(x.link)}" target="_blank" rel="noopener">${x.src}</a>`).join(' · ')}</div>` : ''}
+    </div>`;
+  });
+  $list.innerHTML = html;
+  $status.textContent = cards.length ? '' : 'No headlines here yet.';
+}
+
+document.querySelectorAll('#sort button').forEach(b => {
+  b.classList.toggle('active', b.dataset.mode === sortMode);
+  b.onclick = () => {
+    sortMode = b.dataset.mode;
+    localStorage.setItem('briefing-sort', sortMode);
+    document.querySelectorAll('#sort button').forEach(el => el.classList.toggle('active', el === b));
+    render();
+  };
+});
+
+// Taps: expand summaries in place; learn from opened stories (dim + boost their keywords).
+$list.addEventListener('click', e => {
+  const ex = e.target.closest('.expand');
+  if (ex) {
+    e.preventDefault();
+    ex.closest('.item').classList.toggle('open');
+    return;
+  }
+  const sh = e.target.closest('.share');
+  if (sh) {
+    e.preventDefault();
+    const card = sh.closest('.item');
+    const url = card.querySelector('.mainlink').href;
+    const title = card.querySelector('h2').textContent;
+    if (navigator.share) {
+      navigator.share({ title, url }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        sh.textContent = '✓';
+        setTimeout(() => { sh.textContent = '⤴'; }, 1200);
+      });
+    }
+    return;
+  }
+  const a = e.target.closest('a');
+  if (!a) return;
+  const link = a.getAttribute('href');
+  if (a.classList.contains('mainlink')) a.closest('.item').classList.add('read');
+  read.add(link);
+  if (read.size > 600) read = new Set([...read].slice(-400));
+  const it = items.find(x => x.link === link);
+  if (it) {
+    tokens(it.title).forEach(t => { taste[t] = (taste[t] || 0) + 1; });
+    const keys = Object.keys(taste);
+    if (keys.length > 200) {
+      keys.sort((x, y) => taste[y] - taste[x]).slice(150).forEach(k => delete taste[k]);
+    }
+  }
+  try {
+    localStorage.setItem('briefing-read', JSON.stringify([...read]));
+    localStorage.setItem('briefing-taste', JSON.stringify(taste));
+  } catch (err) {}
+});
+
+function setItems(newItems, fetchedAt) {
+  const seen = new Set();
+  items = newItems
+    .filter(i => i.ts <= Date.now() + 3600e3)
+    .sort((a, b) => b.ts - a.ts)
+    .filter(i => !seen.has(i.link) && seen.add(i.link));
+  rank();
+  lastFetch = fetchedAt;
+  $updated.textContent = 'Updated ' + new Date(fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  render();
+}
+
+async function refresh() {
+  $refresh.classList.add('spinning');
+  try {
+    const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+    const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    if (all.length) {
+      const fetchedAt = Date.now();
+      setItems(all, fetchedAt);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt, items })); } catch (e) {}
+    } else if (!items.length) {
+      $status.textContent = 'Could not load feeds. Check your connection and tap ↻.';
+    }
+  } finally {
+    $refresh.classList.remove('spinning');
+  }
+}
+
+$refresh.onclick = refresh;
+
+document.getElementById('searchBtn').onclick = () => {
+  const open = document.querySelector('header').classList.toggle('searching');
+  if (open) $search.focus();
+  else { $search.value = ''; render(); }
+};
+$search.addEventListener('input', render);
+
+// Coming back to the app after 2+ minutes in the background pulls fresh headlines.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastFetch > 120e3 && !$refresh.classList.contains('spinning')) refresh();
+});
+
+// Offline support: the service worker keeps the app shell available without a connection.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+// Show cached headlines instantly, then fetch fresh ones.
+try {
+  const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+  if (cached?.items?.length) setItems(cached.items, cached.fetchedAt);
+} catch (e) {}
+refresh();
+</script>
+</body>
+</html>
