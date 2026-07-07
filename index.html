@@ -342,7 +342,7 @@
     </div>
     <div class="controls">
       <div class="sort" id="sort">
-        <button data-mode="top" class="active">Top</button>
+        <button data-mode="top" class="active">For you</button>
         <button data-mode="new">New</button>
       </div>
       <button id="bell" title="Daily digest notification" aria-label="Daily digest notification" hidden>&#128276;</button>
@@ -360,12 +360,14 @@
 </main>
 <script>
 const CATS = [
+  { id: 'top',      label: '⭐ Top' },
   { id: 'all',      label: 'All' },
   { id: 'world',    label: 'World' },
   { id: 'tech',     label: 'Tech & AI' },
   { id: 'startups', label: 'Startups' },
   { id: 'business', label: 'Business' },
   { id: 'brasil',   label: 'Brasil' },
+  { id: 'recent',   label: '🕐 Recent' },
 ];
 
 const FEEDS = [
@@ -581,10 +583,27 @@ async function fetchFeed(feed) {
   return [];
 }
 
+// What belongs in the current view: ⭐ Top = multi-outlet stories, 🕐 Recent = last 3 hours.
+function catFilter(i) {
+  if (activeCat === 'all') return true;
+  if (activeCat === 'top') return i.srcN > 1;
+  if (activeCat === 'recent') return Date.now() - i.ts <= 3 * 3600e3;
+  return i.cat === activeCat;
+}
+
 function render() {
   const q = ($search.value || '').trim().toLowerCase();
-  const visible = items.filter(i => (activeCat === 'all' || i.cat === activeCat) && !isMuted(i) &&
+  const visible = items.filter(i => catFilter(i) && !isMuted(i) &&
     (!q || (i.title + ' ' + (i.desc || '') + ' ' + i.src).toLowerCase().includes(q)));
+
+  // Quiet news cycle: pad the ⭐ Top front page with the best-ranked single-outlet stories.
+  if (activeCat === 'top' && !q && visible.length < 12) {
+    const have = new Set(visible.map(i => i.link));
+    visible.push(...items
+      .filter(i => !isMuted(i) && !have.has(i.link))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12 - visible.length));
+  }
 
   // One card per story: group clustered items, lead with the best, link the other outlets.
   const groups = new Map();
@@ -593,7 +612,10 @@ function render() {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(i);
   });
-  const byMode = sortMode === 'top' ? (a, b) => b.score - a.score : (a, b) => b.ts - a.ts;
+  // ⭐ Top is inherently importance-ordered and 🕐 Recent inherently newest-first.
+  const byMode = (activeCat === 'top' || (sortMode === 'top' && activeCat !== 'recent'))
+    ? (a, b) => b.score - a.score
+    : (a, b) => b.ts - a.ts;
   const cards = [...groups.values()].map(g => {
     g.sort(byMode);
     const main = g[0];
@@ -802,7 +824,7 @@ function switchTab(dir) {
 // ---- Catch-up mode: the top story per category, one full-screen slide at a time ----
 function openCatchup() {
   const slides = [];
-  CATS.filter(c => c.id !== 'all').forEach(c => {
+  CATS.filter(c => !['all', 'top', 'recent'].includes(c.id)).forEach(c => {
     const pool = items.filter(i => i.cat === c.id && !isMuted(i)).sort((a, b) => b.score - a.score);
     const pick = pool.find(i => !read.has(i.link)) || pool[0];
     if (pick) slides.push(pick);
@@ -912,7 +934,7 @@ function toggleListen(btn) {
   }
   if (!('speechSynthesis' in window)) return;
   const pool = items
-    .filter(i => (activeCat === 'all' || i.cat === activeCat) && !isMuted(i))
+    .filter(i => catFilter(i) && !isMuted(i))
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
   if (!pool.length) return;
