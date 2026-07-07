@@ -290,6 +290,47 @@
   .stat-row .bar span { display: block; height: 100%; background: var(--accent); }
   .stat-row .n { width: 34px; text-align: right; color: var(--muted); }
   .wk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .item { -webkit-user-select: none; user-select: none; }
+  .item a { -webkit-touch-callout: none; }
+  #sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.25);
+  }
+  #sheet h3 { font-size: 13px; margin-bottom: 10px; color: var(--muted); font-weight: 600; }
+  #sheet .wk-chips { margin-bottom: 6px; }
+  #sheet .row-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    font-size: 15px;
+    padding: 13px 4px;
+    margin-top: 6px;
+    cursor: pointer;
+  }
+  #seed {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  #seed h3 { font-size: 15px; margin-bottom: 4px; }
+  #seed p { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  #seed .wk-chips { margin-bottom: 14px; }
+  #seed .chip.sel { background: var(--chip-active); color: var(--chip-active-text); border-color: var(--chip-active); }
+  #seed .actions { display: flex; gap: 10px; }
 </style>
 </head>
 <body>
@@ -464,8 +505,8 @@ function rank() {
     s *= 1 + 0.15 * (1 - Math.min(it.pos ?? 0, 15) / 15);  // importance: position in the feed
     if (/breaking|urgente|ao vivo|exclusiv/i.test(it.title)) s *= 1.25;
     let interest = 0;
-    it.tk.forEach(t => { if (taste[t]) interest += Math.min(taste[t], 4); });
-    s *= 1 + Math.min(0.5, interest * 0.04);               // performance: what you actually read
+    it.tk.forEach(t => { if (taste[t]) interest += Math.max(-4, Math.min(taste[t], 4)); });
+    s *= 1 + Math.max(-0.35, Math.min(0.5, interest * 0.04)); // taste: reads boost, "less like this" demotes
     it.score = s;
   });
 }
@@ -491,11 +532,11 @@ CATS.forEach(c => {
   };
   $tabs.appendChild(b);
 });
-[['⚡ Catch-up', () => openCatchup()], ['📊 Stats', () => openStats()]].forEach(([label, fn]) => {
+[['▶ Listen', b => toggleListen(b)], ['⚡ Catch-up', () => openCatchup()], ['📊 Stats', () => openStats()]].forEach(([label, fn]) => {
   const b = document.createElement('button');
   b.className = 'chip action';
   b.textContent = label;
-  b.onclick = fn;
+  b.onclick = () => fn(b);
   $tabs.appendChild(b);
 });
 
@@ -542,7 +583,7 @@ async function fetchFeed(feed) {
 
 function render() {
   const q = ($search.value || '').trim().toLowerCase();
-  const visible = items.filter(i => (activeCat === 'all' || i.cat === activeCat) &&
+  const visible = items.filter(i => (activeCat === 'all' || i.cat === activeCat) && !isMuted(i) &&
     (!q || (i.title + ' ' + (i.desc || '') + ' ' + i.src).toLowerCase().includes(q)));
 
   // One card per story: group clustered items, lead with the best, link the other outlets.
@@ -707,7 +748,7 @@ async function computeTrending() {
   const baselineDays = Math.max(0, (dayAgo - oldest) / 86400e3);
   const list = [];
   counts.forEach((c, t) => {
-    if (!TREND_SKIP.has(t) && c.n24 >= 4 && c.b.size >= 3 && (baselineDays < 1 || c.n24 > 3 * (c.old / baselineDays))) list.push([t, c.n24]);
+    if (!TREND_SKIP.has(t) && !muted.has(t) && c.n24 >= 4 && c.b.size >= 3 && (baselineDays < 1 || c.n24 > 3 * (c.old / baselineDays))) list.push([t, c.n24]);
   });
   list.sort((a, b) => b[1] - a[1]);
   trendingTop = list.slice(0, 6);
@@ -762,7 +803,7 @@ function switchTab(dir) {
 function openCatchup() {
   const slides = [];
   CATS.filter(c => c.id !== 'all').forEach(c => {
-    const pool = items.filter(i => i.cat === c.id).sort((a, b) => b.score - a.score);
+    const pool = items.filter(i => i.cat === c.id && !isMuted(i)).sort((a, b) => b.score - a.score);
     const pick = pool.find(i => !read.has(i.link)) || pool[0];
     if (pick) slides.push(pick);
   });
@@ -807,6 +848,120 @@ function openCatchup() {
     else if (dx > 60 && idx > 0) { idx--; show(); }
   }, { passive: true });
   show();
+}
+
+// ---- Mute list + "less like this" (long-press or right-click a card) ----
+let muted = new Set();
+try { muted = new Set(JSON.parse(localStorage.getItem('briefing-muted')) || []); } catch (e) {}
+const saveMuted = () => { try { localStorage.setItem('briefing-muted', JSON.stringify([...muted])); } catch (e) {} };
+const isMuted = i => i.tk && i.tk.some(t => muted.has(t));
+
+function openSheet(card) {
+  document.getElementById('sheet')?.remove();
+  const link = card.querySelector('.mainlink')?.getAttribute('href');
+  const it = items.find(x => x.link === link);
+  if (!it) return;
+  const sheet = document.createElement('div');
+  sheet.id = 'sheet';
+  sheet.innerHTML = `
+    <h3>🚫 Mute a topic — never see it again</h3>
+    <div class="wk-chips">${(it.tk || []).slice(0, 6).map(t => `<button class="chip" data-mute="${t}">${t}</button>`).join('')}</div>
+    <button class="row-btn" data-less>👎 Less like this</button>
+    <button class="row-btn" data-cancel>Cancel</button>`;
+  sheet.addEventListener('click', e => {
+    const m = e.target.closest('[data-mute]');
+    if (m) {
+      muted.add(m.dataset.mute);
+      saveMuted();
+      sheet.remove();
+      computeTrending();
+      render();
+      return;
+    }
+    if (e.target.closest('[data-less]')) {
+      (it.tk || []).forEach(t => { taste[t] = (taste[t] || 0) - 2; });
+      try { localStorage.setItem('briefing-taste', JSON.stringify(taste)); } catch (err) {}
+      rank();
+      render();
+    }
+    sheet.remove();
+  });
+  document.body.appendChild(sheet);
+}
+
+let lpTimer = 0;
+$list.addEventListener('touchstart', e => {
+  const card = e.target.closest('.item');
+  if (card) lpTimer = setTimeout(() => openSheet(card), 550);
+}, { passive: true });
+['touchmove', 'touchend', 'touchcancel'].forEach(ev =>
+  $list.addEventListener(ev, () => clearTimeout(lpTimer), { passive: true }));
+$list.addEventListener('contextmenu', e => {
+  const card = e.target.closest('.item');
+  if (card) { e.preventDefault(); openSheet(card); }
+});
+
+// ---- Listen mode: your phone reads the top headlines aloud (on-device, free) ----
+let speaking = false;
+function toggleListen(btn) {
+  if (speaking) {
+    speaking = false;
+    speechSynthesis.cancel();
+    btn.textContent = '▶ Listen';
+    return;
+  }
+  if (!('speechSynthesis' in window)) return;
+  const pool = items
+    .filter(i => (activeCat === 'all' || i.cat === activeCat) && !isMuted(i))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+  if (!pool.length) return;
+  speaking = true;
+  pool.forEach((s, n) => {
+    const u = new SpeechSynthesisUtterance(`${s.src}. ${s.title}`);
+    u.lang = PT_SOURCES.has(s.src) ? 'pt-BR' : 'en-US';
+    u.rate = 1.05;
+    u.onstart = () => { if (speaking) btn.textContent = `■ Stop · ${n + 1}/${pool.length}`; };
+    if (n === pool.length - 1) u.onend = () => { speaking = false; btn.textContent = '▶ Listen'; };
+    speechSynthesis.speak(u);
+  });
+}
+
+// ---- First-run interest picker: seed the taste profile instantly ----
+const SEED_TOPICS = {
+  'IA & AI': ['inteligencia', 'artificial', 'openai', 'anthropic', 'chatgpt', 'nvidia', 'gemini', 'automacao', 'robots'],
+  'Startups & VC': ['startup', 'startups', 'venture', 'funding', 'rodada', 'aporte', 'unicornio', 'aceleradora'],
+  'Fintech': ['fintech', 'banco', 'bancos', 'nubank', 'cartao', 'credito', 'pagamentos', 'payments'],
+  'Mercados': ['ibovespa', 'dolar', 'juros', 'selic', 'acoes', 'stocks', 'inflacao', 'inflation'],
+  'São Paulo': ['paulo', 'paulista', 'prefeitura', 'metro', 'capital'],
+  'Geopolítica': ['china', 'russia', 'ucrania', 'ukraine', 'israel', 'gaza', 'guerra', 'nato', 'otan'],
+  'Energia & Clima': ['energia', 'petroleo', 'solar', 'eolica', 'clima', 'climate', 'petrobras', 'carbono'],
+  'Crypto': ['bitcoin', 'ethereum', 'crypto', 'cripto', 'blockchain'],
+};
+
+if (!localStorage.getItem('briefing-seeded')) {
+  const seed = document.createElement('div');
+  seed.id = 'seed';
+  seed.innerHTML = `
+    <h3>What are you into?</h3>
+    <p>Pick a few topics to tune your Top feed from day one. It keeps learning from what you read.</p>
+    <div class="wk-chips">${Object.keys(SEED_TOPICS).map(t => `<button class="chip" data-topic="${t}">${t}</button>`).join('')}</div>
+    <div class="actions"><button class="chip action" data-done>Done</button><button class="chip" data-skip>Skip</button></div>`;
+  seed.addEventListener('click', e => {
+    const t = e.target.closest('[data-topic]');
+    if (t) { t.classList.toggle('sel'); return; }
+    if (e.target.closest('[data-done]')) {
+      seed.querySelectorAll('.sel').forEach(el => SEED_TOPICS[el.dataset.topic].forEach(tok => { taste[tok] = (taste[tok] || 0) + 3; }));
+      try { localStorage.setItem('briefing-taste', JSON.stringify(taste)); } catch (err) {}
+      rank();
+      render();
+    }
+    if (e.target.closest('[data-done], [data-skip]')) {
+      localStorage.setItem('briefing-seeded', '1');
+      seed.remove();
+    }
+  });
+  $list.parentNode.insertBefore(seed, $list);
 }
 
 // ---- Media-diet stats: what you actually read, all on-device ----
@@ -854,8 +1009,21 @@ function openStats() {
         <div class="stat-row"><span class="lbl">English</span><span class="bar"><span style="width:${100 - ptPct}%"></span></span><span class="n">${100 - ptPct}%</span></div>`
       : '<h2>No reads logged yet</h2><div class="sub">Stats build up as you tap stories — check back in a few days.</div>'}
       ${topWeek.length ? `<h2>The week’s big topics</h2><div class="wk-chips">${topWeek.map(([t, c]) =>
-        `<span class="chip">${t} · ${c.n}</span>`).join('')}</div>` : ''}`;
-    ov.addEventListener('click', e => { if (e.target.closest('.cu-close')) ov.remove(); });
+        `<span class="chip">${t} · ${c.n}</span>`).join('')}</div>` : ''}
+      ${muted.size ? `<h2>Muted topics — tap to unmute</h2><div class="wk-chips">${[...muted].map(t =>
+        `<button class="chip" data-unmute="${t}">🚫 ${t} ✕</button>`).join('')}</div>` : ''}`;
+    ov.addEventListener('click', e => {
+      const um = e.target.closest('[data-unmute]');
+      if (um) {
+        muted.delete(um.dataset.unmute);
+        saveMuted();
+        um.remove();
+        computeTrending();
+        render();
+        return;
+      }
+      if (e.target.closest('.cu-close')) ov.remove();
+    });
     document.body.appendChild(ov);
   });
 }
