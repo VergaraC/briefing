@@ -2,7 +2,7 @@
 // Strategy: network-first for everything same-origin (so updates arrive immediately),
 // falling back to the cached copy when there is no connection. Headlines themselves
 // live in localStorage, so an offline open still shows the last refresh.
-const CACHE = 'briefing-shell-v3';
+const CACHE = 'briefing-shell-v4';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './icon-180.png'];
 
 self.addEventListener('install', e => {
@@ -43,8 +43,10 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     fetch(e.request)
       .then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
         return res;
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }))

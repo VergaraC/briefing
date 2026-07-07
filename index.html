@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Briefing</title>
-<meta name="theme-color" content="#111318">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f7f9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111318">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Briefing">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -97,8 +101,8 @@
     border: 0;
     background: transparent;
     color: var(--muted);
-    font-size: 15px;
-    padding: 0 6px;
+    font-size: 16px;
+    padding: 2px 10px;
     cursor: pointer;
   }
   #search {
@@ -110,7 +114,7 @@
     border: 1px solid var(--border);
     background: var(--card);
     color: var(--text);
-    font-size: 15px;
+    font-size: 16px; /* >=16px or iOS force-zooms the page on focus */
     -webkit-appearance: none;
   }
   header.searching #search { display: block; }
@@ -119,8 +123,8 @@
     border: 0;
     background: transparent;
     color: var(--muted);
-    font-size: 15px;
-    padding: 0 6px;
+    font-size: 16px;
+    padding: 2px 10px;
     cursor: pointer;
     transition: transform 0.15s;
   }
@@ -184,6 +188,7 @@
   .item:active { opacity: 0.7; }
   .item .src {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     font-size: 12px;
@@ -292,12 +297,18 @@
   .wk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .item { -webkit-user-select: none; user-select: none; }
   .item a { -webkit-touch-callout: none; }
+  #sheetwrap {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.35);
+  }
   #sheet {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 60;
+    z-index: 61;
     background: var(--card);
     border-top: 1px solid var(--border);
     border-radius: 18px 18px 0 0;
@@ -407,8 +418,8 @@ const PUSH_PUBLIC_KEY = 'BJi6Ots5KNrucEgMRLghdNPK9FZ6xyFhPrw_C-rB43Oafi2rXHRcOD6
 
 const PROXIES = [
   ...(MY_PROXY ? [u => MY_PROXY.replace(/\/$/, '') + '/?url=' + encodeURIComponent(u)] : []),
-  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
   u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
 ];
 
 const MAX_PER_FEED = 15;
@@ -530,6 +541,7 @@ CATS.forEach(c => {
     activeCat = c.id;
     document.querySelectorAll('#tabs .chip').forEach(el => el.classList.remove('active'));
     b.classList.add('active');
+    window.scrollTo(0, 0);
     render();
   };
   $tabs.appendChild(b);
@@ -553,7 +565,7 @@ function timeAgo(ts) {
 async function fetchFeed(feed) {
   for (const proxy of PROXIES) {
     try {
-      const res = await fetch(proxy(feed.url), { signal: AbortSignal.timeout(15000) });
+      const res = await fetch(proxy(feed.url), AbortSignal.timeout ? { signal: AbortSignal.timeout(15000) } : {});
       if (!res.ok) continue;
       const text = await res.text();
       const doc = new DOMParser().parseFromString(text, 'text/xml');
@@ -613,9 +625,8 @@ function render() {
     groups.get(k).push(i);
   });
   // ⭐ Top is inherently importance-ordered and 🕐 Recent inherently newest-first.
-  const byMode = (activeCat === 'top' || (sortMode === 'top' && activeCat !== 'recent'))
-    ? (a, b) => b.score - a.score
-    : (a, b) => b.ts - a.ts;
+  const chrono = activeCat === 'recent' || (sortMode === 'new' && activeCat !== 'top');
+  const byMode = chrono ? (a, b) => b.ts - a.ts : (a, b) => b.score - a.score;
   const cards = [...groups.values()].map(g => {
     g.sort(byMode);
     const main = g[0];
@@ -630,7 +641,7 @@ function render() {
   let divided = false;
   cards.forEach(c => {
     const i = c.main;
-    if (sortMode === 'new' && !q && !divided && lastVisit && i.ts <= lastVisit && html) {
+    if (chrono && !q && !divided && lastVisit && i.ts <= lastVisit && html) {
       html += '<div class="divider">you’re caught up — older news below</div>';
       divided = true;
     }
@@ -792,8 +803,22 @@ document.getElementById('trends').addEventListener('click', e => {
   if (!b) return;
   document.querySelector('header').classList.add('searching');
   $search.value = b.dataset.term;
+  window.scrollTo(0, 0);
   render();
 });
+
+// Overlays join the history stack so the Android back gesture closes them instead of exiting the app.
+let overlayClose = null;
+window.addEventListener('popstate', () => {
+  if (overlayClose) { const f = overlayClose; overlayClose = null; f(); }
+});
+function openOverlay(closeFn) {
+  overlayClose = closeFn;
+  history.pushState({ overlay: 1 }, '');
+}
+function closeOverlay() {
+  if (overlayClose) history.back();
+}
 
 // ---- Swipe gestures: horizontal = switch tab, pull down at top = refresh ----
 let swipeX = 0, swipeY = 0, swipeAtTop = false;
@@ -801,10 +826,11 @@ document.addEventListener('touchstart', e => {
   const t = e.touches[0];
   swipeX = t.clientX; swipeY = t.clientY;
   swipeAtTop = window.scrollY <= 0;
+  lpFired = false;
 }, { passive: true });
 
 document.addEventListener('touchend', e => {
-  if (document.getElementById('catchup') || document.getElementById('stats')) return;
+  if (document.getElementById('catchup') || document.getElementById('stats') || document.getElementById('sheetwrap')) return;
   const t = e.changedTouches[0];
   const dx = t.clientX - swipeX, dy = t.clientY - swipeY;
   if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) switchTab(dx < 0 ? 1 : -1);
@@ -818,6 +844,7 @@ function switchTab(dir) {
   activeCat = next.id;
   document.querySelectorAll('#tabs .chip').forEach(el => el.classList.toggle('active', el.dataset.cat === next.id));
   document.querySelector(`#tabs .chip[data-cat="${next.id}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  window.scrollTo(0, 0);
   render();
 }
 
@@ -856,7 +883,7 @@ function openCatchup() {
       <div class="cu-hint">tap right side for next · left for back</div>`;
   }
   ov.addEventListener('click', e => {
-    if (e.target.closest('.cu-close')) { ov.remove(); render(); return; }
+    if (e.target.closest('.cu-close')) { closeOverlay(); return; }
     const open = e.target.closest('.cu-open');
     if (open) { recordRead(open.getAttribute('href')); return; }
     if (e.clientX / innerWidth < 0.35) { if (idx > 0) { idx--; show(); } }
@@ -869,6 +896,7 @@ function openCatchup() {
     if (dx < -60) { idx++; show(); }
     else if (dx > 60 && idx > 0) { idx--; show(); }
   }, { passive: true });
+  openOverlay(() => { ov.remove(); render(); });
   show();
 }
 
@@ -879,10 +907,12 @@ const saveMuted = () => { try { localStorage.setItem('briefing-muted', JSON.stri
 const isMuted = i => i.tk && i.tk.some(t => muted.has(t));
 
 function openSheet(card) {
-  document.getElementById('sheet')?.remove();
+  if (document.getElementById('sheetwrap')) return;
   const link = card.querySelector('.mainlink')?.getAttribute('href');
   const it = items.find(x => x.link === link);
   if (!it) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'sheetwrap';
   const sheet = document.createElement('div');
   sheet.id = 'sheet';
   sheet.innerHTML = `
@@ -895,7 +925,7 @@ function openSheet(card) {
     if (m) {
       muted.add(m.dataset.mute);
       saveMuted();
-      sheet.remove();
+      closeOverlay();
       computeTrending();
       render();
       return;
@@ -905,16 +935,27 @@ function openSheet(card) {
       try { localStorage.setItem('briefing-taste', JSON.stringify(taste)); } catch (err) {}
       rank();
       render();
+      closeOverlay();
+      return;
     }
-    sheet.remove();
+    if (e.target.closest('[data-cancel]')) closeOverlay();
   });
-  document.body.appendChild(sheet);
+  wrap.addEventListener('click', e => { if (e.target === wrap) closeOverlay(); });
+  wrap.appendChild(sheet);
+  document.body.appendChild(wrap);
+  openOverlay(() => wrap.remove());
 }
+
+// Suppress the "ghost click" a long-press can fire on the link underneath the sheet.
+let lpFired = false;
+document.addEventListener('click', e => {
+  if (lpFired) { lpFired = false; e.preventDefault(); e.stopPropagation(); }
+}, true);
 
 let lpTimer = 0;
 $list.addEventListener('touchstart', e => {
   const card = e.target.closest('.item');
-  if (card) lpTimer = setTimeout(() => openSheet(card), 550);
+  if (card) lpTimer = setTimeout(() => { lpFired = true; openSheet(card); }, 550);
 }, { passive: true });
 ['touchmove', 'touchend', 'touchcancel'].forEach(ev =>
   $list.addEventListener(ev, () => clearTimeout(lpTimer), { passive: true }));
@@ -1044,9 +1085,10 @@ function openStats() {
         render();
         return;
       }
-      if (e.target.closest('.cu-close')) ov.remove();
+      if (e.target.closest('.cu-close')) closeOverlay();
     });
     document.body.appendChild(ov);
+    openOverlay(() => ov.remove());
   });
 }
 
