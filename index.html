@@ -207,6 +207,89 @@
     font-size: 14px;
     padding: 30px 20px;
   }
+  .chip.action { color: var(--accent); border-style: dashed; }
+  #trends {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 0 10px;
+    scrollbar-width: none;
+  }
+  #trends::-webkit-scrollbar { display: none; }
+  #trends:empty { display: none; }
+  #trends .tlbl { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+  #trends .chip { font-size: 12.5px; padding: 5px 11px; }
+  .trend { font-size: 11px; }
+  #catchup, #stats {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--bg);
+  }
+  #catchup {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 24px;
+  }
+  .cu-bar {
+    position: absolute;
+    top: calc(14px + env(safe-area-inset-top));
+    left: 16px;
+    right: 64px;
+    display: flex;
+    gap: 5px;
+  }
+  .cu-bar span { flex: 1; height: 3px; border-radius: 2px; background: var(--border); }
+  .cu-bar span.on { background: var(--accent); }
+  .cu-close {
+    position: absolute;
+    top: calc(26px + env(safe-area-inset-top));
+    right: 16px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .cu-cat { color: var(--accent); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  #catchup h2 { font-size: 25px; line-height: 1.28; margin: 10px 0 14px; }
+  .cu-desc { color: var(--muted); font-size: 15px; line-height: 1.5; margin-bottom: 16px; }
+  .cu-src { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin-bottom: 20px; }
+  .cu-open {
+    display: inline-block;
+    background: var(--chip-active);
+    color: var(--chip-active-text);
+    text-decoration: none;
+    font-weight: 700;
+    padding: 11px 20px;
+    border-radius: 999px;
+  }
+  .cu-hint {
+    position: absolute;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .cu-done { font-size: 52px; margin-bottom: 6px; }
+  .cu-close.big { position: static; width: auto; height: auto; border-radius: 999px; padding: 10px 26px; margin-top: 14px; font-size: 15px; }
+  #stats { overflow-y: auto; padding: calc(20px + env(safe-area-inset-top)) 20px 40px; }
+  #stats h1 { margin-bottom: 2px; }
+  #stats h2 { font-size: 17px; margin: 22px 0 10px; }
+  #stats .sub { color: var(--muted); font-size: 13px; }
+  .stat-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 7px 0; }
+  .stat-row .lbl { width: 96px; flex-shrink: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-row .bar { flex: 1; height: 9px; background: var(--card); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+  .stat-row .bar span { display: block; height: 100%; background: var(--accent); }
+  .stat-row .n { width: 34px; text-align: right; color: var(--muted); }
+  .wk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 </style>
 </head>
 <body>
@@ -228,6 +311,7 @@
   </div>
   <nav id="tabs"></nav>
   <input id="search" type="search" placeholder="Search headlines…" autocomplete="off">
+  <div id="trends"></div>
 </header>
 <main>
   <div id="list"></div>
@@ -328,7 +412,10 @@ const STOP = new Set(('about,after,amid,among,been,before,being,between,could,ev
   'your,year,years,live,watch,video,photos,update,updates,analysis,opinion,agora,ainda,antes,apos,aqui,assim,' +
   'cada,como,contra,depois,desde,dessa,desse,desta,deste,dizem,eles,entre,essa,esse,esta,este,fala,fazem,' +
   'foram,hoje,mais,mesmo,muito,nesta,neste,nova,novo,onde,para,pela,pelo,pode,podem,porque,quais,qual,quando,' +
-  'quem,saiba,sera,tem,ter,uma,umas,veja,voce,anos,entenda,confira,artigo,assista').split(','));
+  'quem,saiba,sera,tem,ter,uma,umas,veja,voce,anos,entenda,confira,artigo,assista,sobre,depois,ainda').split(','));
+
+// Too generic to ever count as "trending" in this particular feed mix.
+const TREND_SKIP = new Set(['brasil', 'brazil', 'sao', 'paulo', 'global', 'startup', 'startups', 'tech', 'market', 'markets', 'mercado', 'mercados', 'empresa', 'empresas', 'company', 'companies', 'business']);
 
 function tokens(title) {
   return [...new Set(title.toLowerCase()
@@ -394,13 +481,21 @@ let lastFetch = 0;
 CATS.forEach(c => {
   const b = document.createElement('button');
   b.className = 'chip' + (c.id === activeCat ? ' active' : '');
+  b.dataset.cat = c.id;
   b.textContent = c.label;
   b.onclick = () => {
     activeCat = c.id;
-    document.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#tabs .chip').forEach(el => el.classList.remove('active'));
     b.classList.add('active');
     render();
   };
+  $tabs.appendChild(b);
+});
+[['⚡ Catch-up', () => openCatchup()], ['📊 Stats', () => openStats()]].forEach(([label, fn]) => {
+  const b = document.createElement('button');
+  b.className = 'chip action';
+  b.textContent = label;
+  b.onclick = fn;
   $tabs.appendChild(b);
 });
 
@@ -479,7 +574,7 @@ function render() {
     html += `
     <div class="item${read.has(i.link) ? ' read' : ''}">
       <a class="mainlink" href="${attr(i.link)}" target="_blank" rel="noopener">
-        <div class="src"><span class="dot" style="background:${i.color}"></span>${i.src} <span class="ago">· ${timeAgo(i.ts)}</span>${i.srcN > 1 ? ` <span class="hot">🔥 ${i.srcN} outlets</span>` : ''}<button class="share" aria-label="Share">⤴</button>${i.desc ? '<button class="expand" aria-label="Show summary">⌄</button>' : ''}</div>
+        <div class="src"><span class="dot" style="background:${i.color}"></span>${i.src} <span class="ago">· ${timeAgo(i.ts)}</span>${i.srcN > 1 ? ` <span class="hot">🔥 ${i.srcN} outlets</span>` : ''}${trendingTokens.size && i.tk && i.tk.some(t => trendingTokens.has(t)) ? ' <span class="trend">📈</span>' : ''}<button class="share" aria-label="Share">⤴</button>${i.desc ? '<button class="expand" aria-label="Show summary">⌄</button>' : ''}</div>
         <h2>${esc(i.title)}</h2>
       </a>
       ${i.desc ? `<div class="desc">${esc(i.desc)}</div>` : ''}
@@ -528,6 +623,13 @@ $list.addEventListener('click', e => {
   if (!a) return;
   const link = a.getAttribute('href');
   if (a.classList.contains('mainlink')) a.closest('.item').classList.add('read');
+  recordRead(link);
+});
+
+let readlog = [];
+try { readlog = JSON.parse(localStorage.getItem('briefing-readlog')) || []; } catch (e) {}
+
+function recordRead(link) {
   read.add(link);
   if (read.size > 600) read = new Set([...read].slice(-400));
   const it = items.find(x => x.link === link);
@@ -537,12 +639,226 @@ $list.addEventListener('click', e => {
     if (keys.length > 200) {
       keys.sort((x, y) => taste[y] - taste[x]).slice(150).forEach(k => delete taste[k]);
     }
+    readlog.push({ s: it.src, c: it.cat, t: Date.now() });
+    if (readlog.length > 500) readlog = readlog.slice(-400);
   }
   try {
     localStorage.setItem('briefing-read', JSON.stringify([...read]));
     localStorage.setItem('briefing-taste', JSON.stringify(taste));
+    localStorage.setItem('briefing-readlog', JSON.stringify(readlog));
   } catch (err) {}
+}
+
+// ---- 7-day archive (IndexedDB) + trending detection ----
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('briefing', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('archive', { keyPath: 'link' });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+async function archivePut(list) {
+  try {
+    const db = await idb();
+    const tx = db.transaction('archive', 'readwrite');
+    const st = tx.objectStore('archive');
+    list.forEach(i => st.put({ link: i.link, title: i.title, ts: i.ts, src: i.src, cat: i.cat, brand: i.brand || i.src }));
+    const cutoff = Date.now() - 7 * 86400e3;
+    st.openCursor().onsuccess = e => {
+      const c = e.target.result;
+      if (c) { if (c.value.ts < cutoff) c.delete(); c.continue(); }
+    };
+    tx.oncomplete = () => { db.close(); computeTrending(); };
+  } catch (e) {}
+}
+
+async function archiveAll() {
+  try {
+    const db = await idb();
+    return await new Promise(res => {
+      const q = db.transaction('archive').objectStore('archive').getAll();
+      q.onsuccess = () => { res(q.result); db.close(); };
+      q.onerror = () => { res([]); db.close(); };
+    });
+  } catch (e) { return []; }
+}
+
+// Trending = a keyword hitting >=4 stories from >=3 outlets in 24h, and (once we have
+// a baseline) at 3x its usual daily volume.
+let trendingTokens = new Set();
+let trendingTop = [];
+
+async function computeTrending() {
+  const arc = await archiveAll();
+  if (!arc.length) return;
+  const dayAgo = Date.now() - 86400e3;
+  const counts = new Map();
+  let oldest = Date.now();
+  arc.forEach(a => {
+    oldest = Math.min(oldest, a.ts);
+    tokens(a.title).forEach(t => {
+      let c = counts.get(t);
+      if (!c) { c = { n24: 0, b: new Set(), old: 0 }; counts.set(t, c); }
+      if (a.ts >= dayAgo) { c.n24++; c.b.add(a.brand); } else c.old++;
+    });
+  });
+  const baselineDays = Math.max(0, (dayAgo - oldest) / 86400e3);
+  const list = [];
+  counts.forEach((c, t) => {
+    if (!TREND_SKIP.has(t) && c.n24 >= 4 && c.b.size >= 3 && (baselineDays < 1 || c.n24 > 3 * (c.old / baselineDays))) list.push([t, c.n24]);
+  });
+  list.sort((a, b) => b[1] - a[1]);
+  trendingTop = list.slice(0, 6);
+  trendingTokens = new Set(trendingTop.map(x => x[0]));
+  renderTrends();
+  render();
+}
+
+function renderTrends() {
+  const el = document.getElementById('trends');
+  el.innerHTML = trendingTop.length
+    ? '<span class="tlbl">📈 Trending</span>' + trendingTop.map(([t, n]) =>
+        `<button class="chip" data-term="${t}">${t} · ${n}</button>`).join('')
+    : '';
+}
+
+document.getElementById('trends').addEventListener('click', e => {
+  const b = e.target.closest('[data-term]');
+  if (!b) return;
+  document.querySelector('header').classList.add('searching');
+  $search.value = b.dataset.term;
+  render();
 });
+
+// ---- Swipe gestures: horizontal = switch tab, pull down at top = refresh ----
+let swipeX = 0, swipeY = 0, swipeAtTop = false;
+document.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  swipeX = t.clientX; swipeY = t.clientY;
+  swipeAtTop = window.scrollY <= 0;
+}, { passive: true });
+
+document.addEventListener('touchend', e => {
+  if (document.getElementById('catchup') || document.getElementById('stats')) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - swipeX, dy = t.clientY - swipeY;
+  if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) switchTab(dx < 0 ? 1 : -1);
+  else if (swipeAtTop && dy > 90 && Math.abs(dx) < 60 && window.scrollY <= 0 && !$refresh.classList.contains('spinning')) refresh();
+}, { passive: true });
+
+function switchTab(dir) {
+  const idx = CATS.findIndex(c => c.id === activeCat);
+  const next = CATS[idx + dir];
+  if (!next) return;
+  activeCat = next.id;
+  document.querySelectorAll('#tabs .chip').forEach(el => el.classList.toggle('active', el.dataset.cat === next.id));
+  document.querySelector(`#tabs .chip[data-cat="${next.id}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  render();
+}
+
+// ---- Catch-up mode: the top story per category, one full-screen slide at a time ----
+function openCatchup() {
+  const slides = [];
+  CATS.filter(c => c.id !== 'all').forEach(c => {
+    const pool = items.filter(i => i.cat === c.id).sort((a, b) => b.score - a.score);
+    const pick = pool.find(i => !read.has(i.link)) || pool[0];
+    if (pick) slides.push(pick);
+  });
+  if (!slides.length) return;
+  let idx = 0;
+  const ov = document.createElement('div');
+  ov.id = 'catchup';
+  document.body.appendChild(ov);
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const catName = id => CATS.find(c => c.id === id)?.label || id;
+  function show() {
+    if (idx >= slides.length) {
+      ov.innerHTML = `<div style="text-align:center"><div class="cu-done">✓</div><h2>You’re caught up</h2>
+        <p class="cu-desc">The ${slides.length} top stories, done.</p><button class="cu-close big">Close</button></div>`;
+      return;
+    }
+    const s = slides[idx];
+    ov.innerHTML = `
+      <div class="cu-bar">${slides.map((_, n) => `<span class="${n <= idx ? 'on' : ''}"></span>`).join('')}</div>
+      <button class="cu-close" aria-label="Close">✕</button>
+      <div>
+        <div class="cu-cat">${catName(s.cat)}</div>
+        <h2>${esc(s.title)}</h2>
+        ${s.desc ? `<p class="cu-desc">${esc(s.desc)}</p>` : ''}
+        <div class="cu-src"><span class="dot" style="background:${s.color}"></span>${s.src} · ${timeAgo(s.ts)}</div>
+        <a class="cu-open" href="${s.link.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">Read article ↗</a>
+      </div>
+      <div class="cu-hint">tap right side for next · left for back</div>`;
+  }
+  ov.addEventListener('click', e => {
+    if (e.target.closest('.cu-close')) { ov.remove(); render(); return; }
+    const open = e.target.closest('.cu-open');
+    if (open) { recordRead(open.getAttribute('href')); return; }
+    if (e.clientX / innerWidth < 0.35) { if (idx > 0) { idx--; show(); } }
+    else { idx++; show(); }
+  });
+  let sx = 0;
+  ov.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
+  ov.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - sx;
+    if (dx < -60) { idx++; show(); }
+    else if (dx > 60 && idx > 0) { idx--; show(); }
+  }, { passive: true });
+  show();
+}
+
+// ---- Media-diet stats: what you actually read, all on-device ----
+const PT_SOURCES = new Set(['G1 São Paulo', 'G1 Política', 'G1 Economia', 'Agência Brasil', 'CNN Brasil', 'Estadão',
+  'InfoMoney', 'Bloomberg Línea', 'Money Times', 'NeoFeed', 'Startupi', 'Startups.com.br', 'Brazil Journal']);
+
+function openStats() {
+  archiveAll().then(arc => {
+    const week = Date.now() - 7 * 86400e3;
+    const logs = readlog.filter(r => r.t >= week);
+    const byCat = {}, bySrc = {};
+    let pt = 0;
+    logs.forEach(r => {
+      byCat[r.c] = (byCat[r.c] || 0) + 1;
+      bySrc[r.s] = (bySrc[r.s] || 0) + 1;
+      if (PT_SOURCES.has(r.s)) pt++;
+    });
+    const bars = (obj, name) => {
+      const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const max = entries[0]?.[1] || 1;
+      return entries.map(([k, n]) => `<div class="stat-row"><span class="lbl">${name ? name(k) : k}</span>
+        <span class="bar"><span style="width:${Math.round(100 * n / max)}%"></span></span><span class="n">${n}</span></div>`).join('');
+    };
+    const wk = new Map();
+    arc.forEach(a => tokens(a.title).forEach(t => {
+      let c = wk.get(t);
+      if (!c) { c = { n: 0, b: new Set() }; wk.set(t, c); }
+      c.n++; c.b.add(a.brand);
+    }));
+    const topWeek = [...wk].filter(([t, c]) => c.b.size >= 3 && !TREND_SKIP.has(t)).sort((a, b) => b[1].n - a[1].n).slice(0, 10);
+    const catName = id => CATS.find(c => c.id === id)?.label || id;
+    const ptPct = logs.length ? Math.round(100 * pt / logs.length) : 0;
+    const ov = document.createElement('div');
+    ov.id = 'stats';
+    ov.innerHTML = `
+      <button class="cu-close" aria-label="Close">✕</button>
+      <h1>Your media diet</h1>
+      <div class="sub">Last 7 days · lives only on this device</div>
+      ${logs.length ? `
+        <h2>${logs.length} stories read</h2>
+        <h2>By topic</h2>${bars(byCat, catName)}
+        <h2>By source</h2>${bars(bySrc)}
+        <h2>Language</h2>
+        <div class="stat-row"><span class="lbl">Português</span><span class="bar"><span style="width:${ptPct}%"></span></span><span class="n">${ptPct}%</span></div>
+        <div class="stat-row"><span class="lbl">English</span><span class="bar"><span style="width:${100 - ptPct}%"></span></span><span class="n">${100 - ptPct}%</span></div>`
+      : '<h2>No reads logged yet</h2><div class="sub">Stats build up as you tap stories — check back in a few days.</div>'}
+      ${topWeek.length ? `<h2>The week’s big topics</h2><div class="wk-chips">${topWeek.map(([t, c]) =>
+        `<span class="chip">${t} · ${c.n}</span>`).join('')}</div>` : ''}`;
+    ov.addEventListener('click', e => { if (e.target.closest('.cu-close')) ov.remove(); });
+    document.body.appendChild(ov);
+  });
+}
 
 function setItems(newItems, fetchedAt) {
   const seen = new Set();
@@ -565,6 +881,7 @@ async function refresh() {
       const fetchedAt = Date.now();
       setItems(all, fetchedAt);
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt, items })); } catch (e) {}
+      archivePut(items);
     } else if (!items.length) {
       $status.textContent = 'Could not load feeds. Check your connection and tap ↻.';
     }
@@ -631,6 +948,7 @@ try {
   const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
   if (cached?.items?.length) setItems(cached.items, cached.fetchedAt);
 } catch (e) {}
+computeTrending();
 refresh();
 </script>
 </body>
