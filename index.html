@@ -97,6 +97,7 @@
   .cov-row { display: block; text-decoration: none; color: inherit; padding: 11px 0; border-bottom: 1px solid var(--border); }
   .cov-row .src { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
   .cov-row h4 { font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .cov-spread { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: capitalize; }
   #sheet.coverage { max-height: 70vh; overflow-y: auto; }
   .item.read { opacity: 0.55; }
   .mainlink { display: block; text-decoration: none; color: inherit; }
@@ -453,6 +454,8 @@ const CATS = [
   { id: 'startups', label: 'Startups' },
   { id: 'business', label: 'Business' },
   { id: 'brasil',   label: 'Brasil' },
+  { id: 'sports',   label: '⚽ Sports' },
+  { id: 'tennis',   label: '🎾 Tennis' },
   { id: 'recent',   label: '🕐 Recent' },
   { id: 'saved',    label: '🔖 Saved' },
 ];
@@ -542,6 +545,26 @@ const FEEDS = [
     about: 'Brazil\'s most-read broadsheet, controlled by the Frias family. Pluralist op-ed tradition, strong newsroom; articles metered — works best if you subscribe.' },
   { name: 'The Conversation', cat: 'brasil', color: '#d8352a', lang: 'pt', def: false, url: 'https://theconversation.com/br/articles.atom',
     about: 'Academics writing journalism, nonprofit (Brazilian edition). Slower analysis rather than breaking news; very reliable.' },
+  // ⚽ Sports — big global topics only: American-only leagues (NFL/MLB/NHL) and single-match scorelines are filtered out.
+  { name: 'BBC Sport',      cat: 'sports',   color: '#ffd230', lang: 'en', url: 'https://feeds.bbci.co.uk/sport/rss.xml',
+    skip: /\/(american-football|baseball|ice-hockey|nfl|mlb|nhl|nascar)\b/, skipTitle: /\b\d{1,2}\s*[-–]\s*\d{1,2}\b/,
+    about: 'BBC\'s sport desk (UK public broadcaster). Global coverage led by football; US-only leagues and routine match scores filtered out.' },
+  { name: 'Guardian Sport', cat: 'sports',   color: '#0084c6', lang: 'en', url: 'https://www.theguardian.com/sport/rss',
+    skip: /\/(nfl|mlb|nhl|us-sport|baseball)\b/, skipTitle: /\b\d{1,2}\s*[-–]\s*\d{1,2}\b/,
+    about: 'The Guardian\'s sport desk (Scott Trust-owned). Strong on football and global sport.' },
+  { name: 'ge',             cat: 'sports',   color: '#c4170c', lang: 'pt', def: false, url: 'https://ge.globo.com/rss/ge/',
+    about: 'Globo\'s sports portal — Brazilian football-heavy plus olympic sports. Enable for a local angle (high volume).' },
+  // 🎾 Tennis — full depth
+  { name: 'BBC Tennis',     cat: 'tennis',   color: '#00a651', lang: 'en', url: 'https://feeds.bbci.co.uk/sport/tennis/rss.xml',
+    about: 'BBC\'s dedicated tennis coverage — ATP, WTA and the Grand Slams.' },
+  { name: 'Guardian Tennis',cat: 'tennis',   color: '#0b7d3e', lang: 'en', url: 'https://www.theguardian.com/sport/tennis/rss',
+    about: 'The Guardian\'s tennis desk. Reporting and analysis across the tours.' },
+  { name: 'ge Tênis',       cat: 'tennis',   color: '#c4170c', lang: 'pt', url: 'https://ge.globo.com/rss/ge/tenis/',
+    about: 'Globo\'s tennis section — strongest on Brazilian players and Portuguese-language tennis news.' },
+  { name: 'Sky Sports Tennis', cat: 'tennis', color: '#e2000f', lang: 'en', def: false, url: 'https://www.skysports.com/rss/12040',
+    about: 'Sky Sports tennis feed (Comcast-owned). Tour news and results.' },
+  { name: 'ESPN Tennis',    cat: 'tennis',   color: '#d50a0a', lang: 'en', def: false, url: 'https://www.espn.com/espn/rss/tennis/news',
+    about: 'ESPN\'s tennis desk (Disney). Broad coverage; no article images in the feed.' },
 ];
 
 // Ownership class per source, driving the Stats "ownership balance" view.
@@ -558,6 +581,8 @@ const SRC_KIND = {
   'Agência Brasil': 'public', 'CNN Brasil': 'corporate', 'Estadão': 'corporate',
   'Intercept Brasil': 'nonprofit', 'Agência Pública': 'nonprofit', 'Poder360': 'independent',
   'UOL Notícias': 'corporate', 'Folha de S.Paulo': 'corporate', 'The Conversation': 'nonprofit',
+  'BBC Sport': 'public', 'Guardian Sport': 'nonprofit', 'ge': 'corporate', 'BBC Tennis': 'public',
+  'Guardian Tennis': 'nonprofit', 'ge Tênis': 'corporate', 'Sky Sports Tennis': 'corporate', 'ESPN Tennis': 'corporate',
 };
 
 // Set this to your Cloudflare Worker URL after deploying worker.js (e.g. 'https://briefing-proxy.<you>.workers.dev').
@@ -574,7 +599,7 @@ const PROXIES = [
 ];
 
 const MAX_PER_FEED = 15;
-const CACHE_KEY = 'briefing-cache-v12';
+const CACHE_KEY = 'briefing-cache-v13';
 
 // Per-source on/off overrides (⚙ Sources). Sources with def:false start disabled.
 let srcOverrides = {};
@@ -659,18 +684,31 @@ const TOPIC_TOKENS = {
     'inflation', 'nasdaq', 'stocks', 'lucro', 'earnings', 'receita', 'faturamento', 'mercado', 'mercados', 'banco',
     'bancos', 'fintech', 'investimento', 'investimentos', 'petrobras', 'ipca', 'tarifa', 'tarifaco', 'dividendos',
     'economic', 'economico', 'economica', 'tariff', 'tariffs', 'stock', 'shares', 'revenue', 'profit']),
+  sports: new Set(['futebol', 'soccer', 'basquete', 'basketball', 'voleibol', 'volleyball', 'olimpiadas', 'olympics',
+    'olimpico', 'libertadores', 'campeonato', 'goleiro', 'atletismo', 'natacao', 'selecao', 'gols', 'fifa', 'uefa',
+    'championship', 'medalha', 'medal', 'esporte', 'esportes', 'football']),
+  tennis: new Set(['tennis', 'tenis', 'tenista', 'wimbledon', 'roland', 'garros', 'djokovic', 'alcaraz', 'sinner',
+    'swiatek', 'sabalenka', 'nadal', 'federer', 'medvedev', 'zverev', 'raducanu', 'gauff', 'fonseca', 'haddad']),
 };
 const TOPIC_URL = {
   tech: /\/(tecnologia|technology|tech|gadgets?)\//,
   business: /\/(economia|economy|business|mercados?|markets?|financ|money|dinheiro|investi)\//,
   world: /\/(mundo|world|internacional|international)\//,
+  sports: /\/(sport|sports|esporte|esportes|futebol|basquete|basket|volei|voleibol|olimp)\//,
+  tennis: /\/(tennis|tenis)\//,
 };
 
+// Classify by CONTENT, not by source: a story appears only in the topics its section URL or
+// title keywords actually match. If nothing matches, it falls back to the source's home section
+// (a safe default so it's never lost). Brasil stays geography-based (Brazilian news sources).
 function classify(item) {
-  const topics = new Set([item.cat]); // source's home tab always applies
+  const topics = new Set();
   const url = item.link.toLowerCase();
   for (const t in TOPIC_URL) if (TOPIC_URL[t].test(url)) topics.add(t);
   for (const t in TOPIC_TOKENS) if (item.tk.some(tok => TOPIC_TOKENS[t].has(tok))) topics.add(t);
+  if (topics.has('tennis')) topics.delete('sports'); // tennis has its own tab; keep Sports for other sports
+  if (PT_SOURCES.has(item.src) && item.cat !== 'sports' && item.cat !== 'tennis') topics.add('brasil');
+  if (topics.size === 0) topics.add(item.cat); // couldn't classify → source's home section
   return topics;
 }
 
@@ -774,6 +812,7 @@ async function fetchFeed(feed) {
         const dateStr = n.querySelector('pubDate, published, updated')?.textContent;
         const ts = dateStr ? Date.parse(dateStr) : Date.now();
         if (feed.skip && link && feed.skip.test(link)) return null;
+        if (feed.skipTitle && title && feed.skipTitle.test(title)) return null;
         if (feed.skipCat) {
           const cats = [...n.querySelectorAll('category')].map(c => c.textContent).join(' | ');
           if (feed.skipCat.test(cats) || feed.skipCat.test(title || '')) return null;
@@ -908,8 +947,18 @@ function openCoverage(cid) {
   const sheet = document.createElement('div');
   sheet.id = 'sheet';
   sheet.className = 'coverage';
-  sheet.innerHTML = `<h3>🔥 Same story, ${new Set(group.map(x => x.brand)).size} outlets — compare the takes</h3>` +
-    group.map(x => `
+  // Ownership spread: how many of the covering outlets are public / nonprofit / independent / corporate.
+  const KIND_ORDER = { public: 0, nonprofit: 1, independent: 2, corporate: 3, other: 4 };
+  const kinds = {};
+  const byBrand = {};
+  group.forEach(x => { if (!byBrand[x.brand]) { byBrand[x.brand] = 1; const k = SRC_KIND[x.src] || 'other'; kinds[k] = (kinds[k] || 0) + 1; } });
+  const spread = Object.entries(kinds).sort((a, b) => KIND_ORDER[a[0]] - KIND_ORDER[b[0]])
+    .map(([k, n]) => `${n} ${k}`).join(' · ');
+  const sorted = [...group].sort((a, b) =>
+    (KIND_ORDER[SRC_KIND[a.src]] ?? 4) - (KIND_ORDER[SRC_KIND[b.src]] ?? 4) || b.ts - a.ts);
+  sheet.innerHTML = `<h3>🔥 Same story, ${Object.keys(byBrand).length} outlets — compare the takes</h3>
+    <div class="cov-spread">⚖️ Ownership spread: ${spread}</div>` +
+    sorted.map(x => `
       <a class="cov-row" href="${x.link.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">
         <div class="src"><span class="dot" style="background:${x.color}"></span>${x.src}
           <span class="lang-badge">${SRC_KIND[x.src] || ''}</span> <span class="ago">· ${timeAgo(x.ts)}</span></div>
