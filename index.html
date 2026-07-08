@@ -206,6 +206,77 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  .item .row { display: flex; gap: 10px; align-items: flex-start; }
+  .item .row h2 { flex: 1; }
+  .thumb {
+    width: 74px;
+    height: 74px;
+    object-fit: cover;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: var(--border);
+  }
+  .save {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 2px 10px;
+    cursor: pointer;
+  }
+  .save.on { color: #f59e0b; }
+  .save.on + .share, .save + .share { margin-left: 0; }
+  .cu-img {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+  .src-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .src-row .dot { margin-top: 5px; }
+  .src-info { flex: 1; font-size: 14px; }
+  .src-about { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin-top: 2px; }
+  .lang-badge {
+    font-size: 10px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 4px;
+    vertical-align: 1px;
+  }
+  .switch input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 42px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.15s;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .switch input:checked { background: var(--accent); }
+  .switch input::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.15s;
+  }
+  .switch input:checked::after { left: 19px; }
   #status {
     text-align: center;
     color: var(--muted);
@@ -226,7 +297,7 @@
   #trends .tlbl { color: var(--muted); font-size: 12px; flex-shrink: 0; }
   #trends .chip { font-size: 12.5px; padding: 5px 11px; }
   .trend { font-size: 11px; }
-  #catchup, #stats {
+  #catchup, #stats, #sources {
     position: fixed;
     inset: 0;
     z-index: 50;
@@ -285,10 +356,10 @@
   }
   .cu-done { font-size: 52px; margin-bottom: 6px; }
   .cu-close.big { position: static; width: auto; height: auto; border-radius: 999px; padding: 10px 26px; margin-top: 14px; font-size: 15px; }
-  #stats { overflow-y: auto; padding: calc(20px + env(safe-area-inset-top)) 20px 40px; }
-  #stats h1 { margin-bottom: 2px; }
-  #stats h2 { font-size: 17px; margin: 22px 0 10px; }
-  #stats .sub { color: var(--muted); font-size: 13px; }
+  #stats, #sources { overflow-y: auto; padding: calc(20px + env(safe-area-inset-top)) 20px 40px; }
+  #stats h1, #sources h1 { margin-bottom: 2px; }
+  #stats h2, #sources h2 { font-size: 17px; margin: 22px 0 10px; }
+  #stats .sub, #sources .sub { color: var(--muted); font-size: 13px; }
   .stat-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 7px 0; }
   .stat-row .lbl { width: 96px; flex-shrink: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stat-row .bar { flex: 1; height: 9px; background: var(--card); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
@@ -379,34 +450,93 @@ const CATS = [
   { id: 'business', label: 'Business' },
   { id: 'brasil',   label: 'Brasil' },
   { id: 'recent',   label: '🕐 Recent' },
+  { id: 'saved',    label: '🔖 Saved' },
 ];
 
+// def:false sources ship disabled — turn them on in ⚙ Sources. `about` = known-for / ownership / independence.
 const FEEDS = [
-  { name: 'Al Jazeera',     cat: 'world',    color: '#fa9000', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
-  { name: 'BBC World',      cat: 'world',    color: '#bb1919', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-  { name: 'CNN World',      cat: 'world',    color: '#cc0000', url: 'http://rss.cnn.com/rss/edition_world.rss' },
-  { name: 'TechCrunch',     cat: 'tech',     color: '#0a9e01', url: 'https://techcrunch.com/feed/' },
-  { name: 'The Verge',      cat: 'tech',     color: '#5200ff', url: 'https://www.theverge.com/rss/index.xml' },
-  { name: 'Ars Technica',   cat: 'tech',     color: '#ff4e00', url: 'https://feeds.arstechnica.com/arstechnica/index' },
-  { name: 'Hacker News',    cat: 'tech',     color: '#ff6600', url: 'https://hnrss.org/frontpage' },
-  { name: 'TC Startups',    cat: 'startups', color: '#0a9e01', url: 'https://techcrunch.com/category/startups/feed/' },
-  { name: 'Crunchbase',     cat: 'startups', color: '#146aff', url: 'https://news.crunchbase.com/feed/' },
-  { name: 'Startupi',       cat: 'startups', color: '#7c3aed', url: 'https://startupi.com.br/feed/' },
-  { name: 'NeoFeed',        cat: 'startups', color: '#0ea5e9', url: 'https://neofeed.com.br/feed/' },
-  { name: 'Startups.com.br',cat: 'startups', color: '#f43f5e', url: 'https://startups.com.br/feed/' },
-  { name: 'BBC Business',   cat: 'business', color: '#8f26ff', url: 'https://feeds.bbci.co.uk/news/business/rss.xml' },
-  { name: 'CNBC',           cat: 'business', color: '#005594', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147' },
-  { name: 'Brazil Journal', cat: 'business', color: '#0f766e', url: 'https://braziljournal.com/feed/' },
-  { name: 'InfoMoney',      cat: 'business', color: '#ff8700', url: 'https://www.infomoney.com.br/feed/', skip: /\/(esportes|consumo|mundo|politica|cultura|turismo|saude)\// },
-  { name: 'Bloomberg Línea',cat: 'business', color: '#84cc16', url: 'https://www.bloomberglinea.com.br/arc/outboundfeeds/rss/?outputType=xml' },
-  { name: 'Money Times',    cat: 'business', color: '#eab308', url: 'https://www.moneytimes.com.br/feed/' },
-  { name: 'MarketWatch',    cat: 'business', color: '#00ac4e', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
-  { name: 'G1 São Paulo',   cat: 'brasil',   color: '#c4170c', url: 'https://g1.globo.com/rss/g1/sao-paulo/' },
-  { name: 'G1 Política',    cat: 'brasil',   color: '#c4170c', url: 'https://g1.globo.com/rss/g1/politica/' },
-  { name: 'G1 Economia',    cat: 'brasil',   color: '#c4170c', url: 'https://g1.globo.com/rss/g1/economia/' },
-  { name: 'Agência Brasil', cat: 'brasil',   color: '#1351b4', url: 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml' },
-  { name: 'CNN Brasil',     cat: 'brasil',   color: '#cc0000', url: 'https://www.cnnbrasil.com.br/feed/', skip: /\/(esportes|internacional|entretenimento)\// },
-  { name: 'Estadão',        cat: 'brasil',   color: '#1e5aa8', url: 'https://www.estadao.com.br/arc/outboundfeeds/feeds/rss/sections/geral/?outputType=xml' },
+  { name: 'Al Jazeera',     cat: 'world',    color: '#fa9000', lang: 'en', url: 'https://www.aljazeera.com/xml/rss/all.xml',
+    about: 'Doha-based international broadcaster funded by the Qatari state. Excellent Middle East and Global South coverage; editorially bold, though soft on Qatar itself.' },
+  { name: 'BBC World',      cat: 'world',    color: '#bb1919', lang: 'en', url: 'https://feeds.bbci.co.uk/news/world/rss.xml',
+    about: 'British public broadcaster funded by UK licence fees. One of the most trusted newsrooms in the world; centrist and thorough.' },
+  { name: 'CNN World',      cat: 'world',    color: '#cc0000', lang: 'en', url: 'http://rss.cnn.com/rss/edition_world.rss',
+    about: 'US cable news pioneer owned by Warner Bros. Discovery. Very fast on breaking news; mainstream and US-centric.' },
+  { name: 'The Guardian',   cat: 'world',    color: '#0084c6', lang: 'en', url: 'https://www.theguardian.com/world/rss',
+    about: 'British daily owned by the Scott Trust, a structure that exists solely to guarantee its independence. Progressive lean, strong international desk, fully free.' },
+  { name: 'NPR',            cat: 'world',    color: '#e0202c', lang: 'en', def: false, url: 'https://feeds.npr.org/1001/rss.xml',
+    about: 'US public radio network funded by members and sponsors. Measured, well-sourced US and world coverage.' },
+  { name: 'BBC Brasil',     cat: 'world',    color: '#a91d1d', lang: 'pt', def: false, url: 'https://feeds.bbci.co.uk/portuguese/rss.xml',
+    about: 'BBC\'s Brazilian service: world news and analysis in Portuguese, plus Brazil explainers. Same BBC standards.' },
+  { name: 'TechCrunch',     cat: 'tech',     color: '#0a9e01', lang: 'en', url: 'https://techcrunch.com/feed/',
+    about: 'The reference for Silicon Valley and startup news, owned by private-equity firm Apollo (ex-Yahoo). Fast and well-connected.' },
+  { name: 'The Verge',      cat: 'tech',     color: '#5200ff', lang: 'en', url: 'https://www.theverge.com/rss/index.xml',
+    about: 'Tech, gadgets and internet culture from Vox Media. Strong product reviews and accessible tech journalism.' },
+  { name: 'Ars Technica',   cat: 'tech',     color: '#ff4e00', lang: 'en', url: 'https://feeds.arstechnica.com/arstechnica/index',
+    about: 'Deep technical journalism owned by Condé Nast. Excellent on science, security, and tech policy; written for people who want the details.' },
+  { name: 'Hacker News',    cat: 'tech',     color: '#ff6600', lang: 'en', url: 'https://hnrss.org/frontpage',
+    about: 'Not a newsroom: the tech community\'s front page, run by Y Combinator and curated by upvotes. Where tech news often breaks first.' },
+  { name: 'Rest of World',  cat: 'tech',     color: '#ff6d3b', lang: 'en', url: 'https://restofworld.org/feed/latest/',
+    about: 'US nonprofit covering how technology reshapes life outside the West — Brazil included. Independent, ad-free, original reporting.' },
+  { name: 'MIT Tech Review',cat: 'tech',     color: '#10a5a0', lang: 'en', def: false, url: 'https://www.technologyreview.com/feed/',
+    about: 'Owned by MIT. Authoritative on AI research and emerging tech; some articles metered.' },
+  { name: 'Wired',          cat: 'tech',     color: '#94a3b8', lang: 'en', def: false, url: 'https://www.wired.com/feed/rss',
+    about: 'Condé Nast\'s tech culture magazine. Big features and ideas; metered paywall on some stories.' },
+  { name: '404 Media',      cat: 'tech',     color: '#00c08b', lang: 'en', def: false, url: 'https://www.404media.co/rss/',
+    about: 'Worker-owned co-op founded by ex-Vice Motherboard journalists. Sharp investigations on AI, privacy and platforms; some posts ask for a free account.' },
+  { name: 'VentureBeat',    cat: 'tech',     color: '#2563eb', lang: 'en', def: false, url: 'https://venturebeat.com/feed/',
+    about: 'Independent tech site now focused mostly on enterprise AI news.' },
+  { name: 'TC Startups',    cat: 'startups', color: '#0a9e01', lang: 'en', url: 'https://techcrunch.com/category/startups/feed/',
+    about: 'TechCrunch\'s startups-only section: funding rounds, launches and failures.' },
+  { name: 'Crunchbase',     cat: 'startups', color: '#146aff', lang: 'en', url: 'https://news.crunchbase.com/feed/',
+    about: 'Editorial arm of the Crunchbase startup database. Data-driven coverage of venture capital and funding trends.' },
+  { name: 'Startupi',       cat: 'startups', color: '#7c3aed', lang: 'pt', url: 'https://startupi.com.br/feed/',
+    about: 'Independent Brazilian site dedicated to the startup ecosystem since 2010. Day-to-day coverage of founders, rounds and programs.' },
+  { name: 'NeoFeed',        cat: 'startups', color: '#0ea5e9', lang: 'pt', url: 'https://neofeed.com.br/feed/',
+    about: 'Brazilian digital outlet founded by veteran business journalists. Strong access to executives and dealmakers.' },
+  { name: 'Startups.com.br',cat: 'startups', color: '#f43f5e', lang: 'pt', url: 'https://startups.com.br/feed/',
+    about: 'Brazilian vertical focused on startups and venture capital news.' },
+  { name: 'Sifted',         cat: 'startups', color: '#fd5a47', lang: 'en', def: false, url: 'https://sifted.eu/feed',
+    about: 'Financial Times-backed publication covering European startups. Useful counterweight to the US-centric view.' },
+  { name: 'BBC Business',   cat: 'business', color: '#8f26ff', lang: 'en', url: 'https://feeds.bbci.co.uk/news/business/rss.xml',
+    about: 'BBC\'s business desk: global economy and companies with public-broadcaster rigor.' },
+  { name: 'CNBC',           cat: 'business', color: '#005594', lang: 'en', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147',
+    about: 'US business network owned by Comcast/NBCUniversal. Wire-level speed on markets and corporate news.' },
+  { name: 'Brazil Journal', cat: 'business', color: '#0f766e', lang: 'pt', url: 'https://braziljournal.com/feed/',
+    about: 'Independent Brazilian financial site founded by journalists Geraldo Samor and Pedro Arbex. The Faria Lima crowd\'s morning read.' },
+  { name: 'InfoMoney',      cat: 'business', color: '#ff8700', lang: 'pt', url: 'https://www.infomoney.com.br/feed/', skip: /\/(esportes|consumo|mundo|politica|cultura|turismo|saude)\//,
+    about: 'Brazil\'s largest finance portal, owned by broker XP Inc. Strong markets coverage — keep the ownership in mind on investment-product stories.' },
+  { name: 'Bloomberg Línea',cat: 'business', color: '#84cc16', lang: 'pt', url: 'https://www.bloomberglinea.com.br/arc/outboundfeeds/rss/?outputType=xml',
+    about: 'Bloomberg\'s Latin America venture. Wire-quality business news in Portuguese, free.' },
+  { name: 'Money Times',    cat: 'business', color: '#eab308', lang: 'pt', url: 'https://www.moneytimes.com.br/feed/',
+    about: 'Fast Brazilian markets site with a retail-investor slant; part of the Empiricus media group.' },
+  { name: 'MarketWatch',    cat: 'business', color: '#00ac4e', lang: 'en', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories',
+    about: 'Dow Jones (News Corp) markets site — the WSJ\'s family, without the paywall.' },
+  { name: 'Fast Company',   cat: 'business', color: '#ef5029', lang: 'en', def: false, url: 'https://www.fastcompany.com/latest/rss',
+    about: 'US magazine on business innovation, design and workplace trends.' },
+  { name: 'G1 São Paulo',   cat: 'brasil',   color: '#c4170c', lang: 'pt', url: 'https://g1.globo.com/rss/g1/sao-paulo/',
+    about: 'Local São Paulo desk of G1, Grupo Globo\'s news portal — Brazil\'s largest media group. Broad, fast, factual.' },
+  { name: 'G1 Política',    cat: 'brasil',   color: '#c4170c', lang: 'pt', url: 'https://g1.globo.com/rss/g1/politica/',
+    about: 'G1\'s Brasília politics desk (Grupo Globo). The default record of Brazilian political news.' },
+  { name: 'G1 Economia',    cat: 'brasil',   color: '#c4170c', lang: 'pt', url: 'https://g1.globo.com/rss/g1/economia/',
+    about: 'G1\'s economy desk (Grupo Globo): inflation, jobs, rates and how they hit daily life.' },
+  { name: 'Agência Brasil', cat: 'brasil',   color: '#1351b4', lang: 'pt', url: 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml',
+    about: 'Brazil\'s public news agency (state-run EBC). Straight factual coverage; government-adjacent by nature, so read official-source stories with that in mind.' },
+  { name: 'CNN Brasil',     cat: 'brasil',   color: '#cc0000', lang: 'pt', url: 'https://www.cnnbrasil.com.br/feed/', skip: /\/(esportes|internacional|entretenimento)\//,
+    about: 'Brazilian licensee of the CNN brand, owned by businessman Rubens Menin (not CNN US). Fast general news operation.' },
+  { name: 'Estadão',        cat: 'brasil',   color: '#1e5aa8', lang: 'pt', url: 'https://www.estadao.com.br/arc/outboundfeeds/feeds/rss/sections/geral/?outputType=xml',
+    about: 'O Estado de S. Paulo, founded 1875, controlled by the Mesquita family. Liberal-conservative editorial line, rigorous newsroom; articles metered.' },
+  { name: 'Intercept Brasil', cat: 'brasil', color: '#6c3ad1', lang: 'pt', def: false, url: 'https://www.intercept.com.br/feed/',
+    about: 'Investigative nonprofit co-founded by Glenn Greenwald, famous for the Vaza Jato revelations. Fiercely independent, adversarial, left-leaning.' },
+  { name: 'Agência Pública',cat: 'brasil',   color: '#ff4f00', lang: 'pt', def: false, url: 'https://apublica.org/feed/',
+    about: 'Nonprofit investigative agency funded by readers and foundations. Deep reporting on power, environment and human rights.' },
+  { name: 'Poder360',       cat: 'brasil',   color: '#f26722', lang: 'pt', def: false, url: 'https://www.poder360.com.br/feed/',
+    about: 'Brasília-focused political site founded by journalist Fernando Rodrigues. Data-minded, document-heavy coverage of the capital.' },
+  { name: 'UOL Notícias',   cat: 'brasil',   color: '#f7a800', lang: 'pt', def: false, url: 'https://rss.uol.com.br/feed/noticias.xml',
+    about: 'Brazil\'s biggest web portal, part of Grupo Folha. Broad general news, free.' },
+  { name: 'Folha de S.Paulo', cat: 'brasil', color: '#2f66ac', lang: 'pt', def: false, url: 'https://feeds.folha.uol.com.br/emcimadahora/rss091.xml',
+    about: 'Brazil\'s most-read broadsheet, controlled by the Frias family. Pluralist op-ed tradition, strong newsroom; articles metered — works best if you subscribe.' },
+  { name: 'The Conversation', cat: 'brasil', color: '#d8352a', lang: 'pt', def: false, url: 'https://theconversation.com/br/articles.atom',
+    about: 'Academics writing journalism, nonprofit (Brazilian edition). Slower analysis rather than breaking news; very reliable.' },
 ];
 
 // Set this to your Cloudflare Worker URL after deploying worker.js (e.g. 'https://briefing-proxy.<you>.workers.dev').
@@ -423,10 +553,24 @@ const PROXIES = [
 ];
 
 const MAX_PER_FEED = 15;
-const CACHE_KEY = 'briefing-cache-v9';
+const CACHE_KEY = 'briefing-cache-v10';
+
+// Per-source on/off overrides (⚙ Sources). Sources with def:false start disabled.
+let srcOverrides = {};
+try { srcOverrides = JSON.parse(localStorage.getItem('briefing-sources')) || {}; } catch (e) {}
+const srcEnabled = name => {
+  const f = FEEDS.find(x => x.name === name);
+  return f ? (srcOverrides[name] ?? (f.def !== false)) : false;
+};
 
 let items = [];
 let activeCat = 'all';
+let catchupOnBoot = false;
+{
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (CATS.some(c => c.id === h)) activeCat = h;
+  else if (h === 'catchup') catchupOnBoot = true;
+}
 let sortMode = localStorage.getItem('briefing-sort') || 'top';
 
 // Personalization state: which links were read, which title keywords the user taps most.
@@ -541,12 +685,13 @@ CATS.forEach(c => {
     activeCat = c.id;
     document.querySelectorAll('#tabs .chip').forEach(el => el.classList.remove('active'));
     b.classList.add('active');
+    history.replaceState(null, '', '#' + activeCat);
     window.scrollTo(0, 0);
     render();
   };
   $tabs.appendChild(b);
 });
-[['▶ Listen', b => toggleListen(b)], ['⚡ Catch-up', () => openCatchup()], ['📊 Stats', () => openStats()]].forEach(([label, fn]) => {
+[['▶ Listen', b => toggleListen(b)], ['⚡ Catch-up', () => openCatchup()], ['📊 Stats', () => openStats()], ['⚙ Sources', () => openSources()]].forEach(([label, fn]) => {
   const b = document.createElement('button');
   b.className = 'chip action';
   b.textContent = label;
@@ -579,8 +724,13 @@ async function fetchFeed(feed) {
         const dateStr = n.querySelector('pubDate, published, updated')?.textContent;
         const ts = dateStr ? Date.parse(dateStr) : Date.now();
         if (feed.skip && link && feed.skip.test(link)) return null;
-        let desc = n.querySelector('description, summary')?.textContent || '';
-        desc = desc.replace(/<[^>]+>/g, ' ')
+        const rawDesc = n.querySelector('description, summary')?.textContent || '';
+        let img = n.getElementsByTagName('media:content')[0]?.getAttribute('url')
+               || n.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url')
+               || n.querySelector('enclosure[type^="image"]')?.getAttribute('url') || '';
+        if (!img) { const m = rawDesc.match(/<img[^>]+src=["']([^"']+)/i); if (m) img = m[1]; }
+        if (!/^https:/.test(img)) img = ''; // https-only to avoid mixed content
+        let desc = rawDesc.replace(/<[^>]+>/g, ' ')
           .replace(/&(#8217|#x27|#39|rsquo|apos);/g, '’')
           .replace(/&(#8220|#8221|ldquo|rdquo|quot);/g, '"')
           .replace(/&(#8211|#8212|ndash|mdash);/g, '–')
@@ -588,7 +738,7 @@ async function fetchFeed(feed) {
           .replace(/&#?\w+;/g, ' ')
           .replace(/\s+/g, ' ').trim().slice(0, 280);
         if (/^(article url|comments url|points)/i.test(desc) || desc === title) desc = ''; // drop boilerplate (e.g. Hacker News)
-        return title && link ? { title, link, desc, ts: isNaN(ts) ? Date.now() : ts, src: feed.name, cat: feed.cat, color: feed.color, pos } : null;
+        return title && link ? { title, link, desc, img, ts: isNaN(ts) ? Date.now() : ts, src: feed.name, cat: feed.cat, color: feed.color, pos } : null;
       }).filter(Boolean);
     } catch (e) { /* try next proxy */ }
   }
@@ -600,13 +750,16 @@ function catFilter(i) {
   if (activeCat === 'all') return true;
   if (activeCat === 'top') return i.srcN > 1;
   if (activeCat === 'recent') return Date.now() - i.ts <= 3 * 3600e3;
+  if (activeCat === 'saved') return !!savedStore[i.link];
   return i.cat === activeCat;
 }
 
 function render() {
   const q = ($search.value || '').trim().toLowerCase();
-  const visible = items.filter(i => catFilter(i) && !isMuted(i) &&
-    (!q || (i.title + ' ' + (i.desc || '') + ' ' + i.src).toLowerCase().includes(q)));
+  const qMatch = i => !q || (i.title + ' ' + (i.desc || '') + ' ' + i.src).toLowerCase().includes(q);
+  const visible = activeCat === 'saved'
+    ? Object.values(savedStore).filter(qMatch)
+    : items.filter(i => catFilter(i) && !isMuted(i) && qMatch(i));
 
   // Quiet news cycle: pad the ⭐ Top front page with the best-ranked single-outlet stories.
   if (activeCat === 'top' && !q && visible.length < 12) {
@@ -624,9 +777,11 @@ function render() {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(i);
   });
-  // ⭐ Top is inherently importance-ordered and 🕐 Recent inherently newest-first.
-  const chrono = activeCat === 'recent' || (sortMode === 'new' && activeCat !== 'top');
-  const byMode = chrono ? (a, b) => b.ts - a.ts : (a, b) => b.score - a.score;
+  // ⭐ Top is importance-ordered, 🕐 Recent newest-first, 🔖 Saved by save time.
+  const chrono = activeCat === 'recent' || (sortMode === 'new' && !['top', 'saved'].includes(activeCat));
+  const byMode = activeCat === 'saved'
+    ? (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
+    : chrono ? (a, b) => b.ts - a.ts : (a, b) => (b.score || 0) - (a.score || 0);
   const cards = [...groups.values()].map(g => {
     g.sort(byMode);
     const main = g[0];
@@ -648,15 +803,18 @@ function render() {
     html += `
     <div class="item${read.has(i.link) ? ' read' : ''}">
       <a class="mainlink" href="${attr(i.link)}" target="_blank" rel="noopener">
-        <div class="src"><span class="dot" style="background:${i.color}"></span>${i.src} <span class="ago">· ${timeAgo(i.ts)}</span>${i.srcN > 1 ? ` <span class="hot">🔥 ${i.srcN} outlets</span>` : ''}${trendingTokens.size && i.tk && i.tk.some(t => trendingTokens.has(t)) ? ' <span class="trend">📈</span>' : ''}<button class="share" aria-label="Share">⤴</button>${i.desc ? '<button class="expand" aria-label="Show summary">⌄</button>' : ''}</div>
-        <h2>${esc(i.title)}</h2>
+        <div class="src"><span class="dot" style="background:${i.color}"></span>${i.src} <span class="ago">· ${timeAgo(i.ts)}</span>${i.srcN > 1 ? ` <span class="hot">🔥 ${i.srcN} outlets</span>` : ''}${trendingTokens.size && i.tk && i.tk.some(t => trendingTokens.has(t)) ? ' <span class="trend">📈</span>' : ''}<button class="save${savedStore[i.link] ? ' on' : ''}" aria-label="Save for later">${savedStore[i.link] ? '★' : '☆'}</button><button class="share" aria-label="Share">⤴</button>${i.desc ? '<button class="expand" aria-label="Show summary">⌄</button>' : ''}</div>
+        <div class="row">
+          <h2>${esc(i.title)}</h2>
+          ${i.img ? `<img class="thumb" src="${attr(i.img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+        </div>
       </a>
       ${i.desc ? `<div class="desc">${esc(i.desc)}</div>` : ''}
       ${c.alts.length ? `<div class="alts">also on ${c.alts.map(x => `<a href="${attr(x.link)}" target="_blank" rel="noopener">${x.src}</a>`).join(' · ')}</div>` : ''}
     </div>`;
   });
   $list.innerHTML = html;
-  $status.textContent = cards.length ? '' : 'No headlines here yet.';
+  $status.textContent = cards.length ? '' : (activeCat === 'saved' ? 'Nothing saved yet — tap ☆ on any story.' : 'No headlines here yet.');
 }
 
 document.querySelectorAll('#sort button').forEach(b => {
@@ -669,12 +827,37 @@ document.querySelectorAll('#sort button').forEach(b => {
   };
 });
 
+// Save-for-later store: full story snapshots so saved items outlive the feeds.
+let savedStore = {};
+try { savedStore = JSON.parse(localStorage.getItem('briefing-saved')) || {}; } catch (e) {}
+
+function toggleSave(link) {
+  if (savedStore[link]) {
+    delete savedStore[link];
+  } else {
+    const it = items.find(x => x.link === link);
+    if (!it) return;
+    savedStore[link] = { title: it.title, link, src: it.src, cat: it.cat, color: it.color, ts: it.ts, desc: it.desc, img: it.img, savedAt: Date.now() };
+  }
+  try { localStorage.setItem('briefing-saved', JSON.stringify(savedStore)); } catch (e) {}
+}
+
 // Taps: expand summaries in place; learn from opened stories (dim + boost their keywords).
 $list.addEventListener('click', e => {
   const ex = e.target.closest('.expand');
   if (ex) {
     e.preventDefault();
     ex.closest('.item').classList.toggle('open');
+    return;
+  }
+  const sv = e.target.closest('.save');
+  if (sv) {
+    e.preventDefault();
+    const link = sv.closest('.item').querySelector('.mainlink').getAttribute('href');
+    toggleSave(link);
+    if (activeCat === 'saved') { render(); return; }
+    sv.classList.toggle('on', !!savedStore[link]);
+    sv.textContent = savedStore[link] ? '★' : '☆';
     return;
   }
   const sh = e.target.closest('.share');
@@ -844,6 +1027,7 @@ function switchTab(dir) {
   activeCat = next.id;
   document.querySelectorAll('#tabs .chip').forEach(el => el.classList.toggle('active', el.dataset.cat === next.id));
   document.querySelector(`#tabs .chip[data-cat="${next.id}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  history.replaceState(null, '', '#' + activeCat);
   window.scrollTo(0, 0);
   render();
 }
@@ -851,7 +1035,7 @@ function switchTab(dir) {
 // ---- Catch-up mode: the top story per category, one full-screen slide at a time ----
 function openCatchup() {
   const slides = [];
-  CATS.filter(c => !['all', 'top', 'recent'].includes(c.id)).forEach(c => {
+  CATS.filter(c => !['all', 'top', 'recent', 'saved'].includes(c.id)).forEach(c => {
     const pool = items.filter(i => i.cat === c.id && !isMuted(i)).sort((a, b) => b.score - a.score);
     const pick = pool.find(i => !read.has(i.link)) || pool[0];
     if (pick) slides.push(pick);
@@ -874,6 +1058,7 @@ function openCatchup() {
       <div class="cu-bar">${slides.map((_, n) => `<span class="${n <= idx ? 'on' : ''}"></span>`).join('')}</div>
       <button class="cu-close" aria-label="Close">✕</button>
       <div>
+        ${s.img ? `<img class="cu-img" src="${s.img.replace(/"/g, '&quot;')}" alt="" loading="lazy" onerror="this.remove()">` : ''}
         <div class="cu-cat">${catName(s.cat)}</div>
         <h2>${esc(s.title)}</h2>
         ${s.desc ? `<p class="cu-desc">${esc(s.desc)}</p>` : ''}
@@ -1028,8 +1213,7 @@ if (!localStorage.getItem('briefing-seeded')) {
 }
 
 // ---- Media-diet stats: what you actually read, all on-device ----
-const PT_SOURCES = new Set(['G1 São Paulo', 'G1 Política', 'G1 Economia', 'Agência Brasil', 'CNN Brasil', 'Estadão',
-  'InfoMoney', 'Bloomberg Línea', 'Money Times', 'NeoFeed', 'Startupi', 'Startups.com.br', 'Brazil Journal']);
+const PT_SOURCES = new Set(FEEDS.filter(f => f.lang === 'pt').map(f => f.name));
 
 function openStats() {
   archiveAll().then(arc => {
@@ -1074,7 +1258,12 @@ function openStats() {
       ${topWeek.length ? `<h2>The week’s big topics</h2><div class="wk-chips">${topWeek.map(([t, c]) =>
         `<span class="chip">${t} · ${c.n}</span>`).join('')}</div>` : ''}
       ${muted.size ? `<h2>Muted topics — tap to unmute</h2><div class="wk-chips">${[...muted].map(t =>
-        `<button class="chip" data-unmute="${t}">🚫 ${t} ✕</button>`).join('')}</div>` : ''}`;
+        `<button class="chip" data-unmute="${t}">🚫 ${t} ✕</button>`).join('')}</div>` : ''}
+      ${feedHealth.length ? `<h2>Source health</h2><div class="sub">${feedHealth.filter(h => h.ok).length}/${feedHealth.length} sources loaded on the last refresh${feedHealth.some(h => !h.ok) ? ' — failed: ' + feedHealth.filter(h => !h.ok).map(h => h.name).join(', ') : ''}</div>` : ''}
+      <h2>Backup</h2>
+      <div class="sub">Your taste profile, saved stories, mutes and history — as a file you can import on another device.</div>
+      <div class="wk-chips" style="margin-top:10px"><button class="chip" data-export>⬇ Export my data</button><button class="chip" data-import>⬆ Import</button></div>
+      <input type="file" accept=".json,application/json" hidden>`;
     ov.addEventListener('click', e => {
       const um = e.target.closest('[data-unmute]');
       if (um) {
@@ -1085,29 +1274,97 @@ function openStats() {
         render();
         return;
       }
+      if (e.target.closest('[data-export]')) {
+        const data = { taste, muted: [...muted], read: [...read], readlog, saved: savedStore, seeded: localStorage.getItem('briefing-seeded'), sort: sortMode, sources: srcOverrides };
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+        a.download = 'briefing-backup.json';
+        a.click();
+        return;
+      }
+      if (e.target.closest('[data-import]')) { ov.querySelector('input[type=file]').click(); return; }
       if (e.target.closest('.cu-close')) closeOverlay();
+    });
+    ov.querySelector('input[type=file]').addEventListener('change', ev => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      file.text().then(txt => {
+        const d = JSON.parse(txt);
+        if (d.taste) localStorage.setItem('briefing-taste', JSON.stringify(d.taste));
+        if (d.muted) localStorage.setItem('briefing-muted', JSON.stringify(d.muted));
+        if (d.read) localStorage.setItem('briefing-read', JSON.stringify(d.read));
+        if (d.readlog) localStorage.setItem('briefing-readlog', JSON.stringify(d.readlog));
+        if (d.saved) localStorage.setItem('briefing-saved', JSON.stringify(d.saved));
+        if (d.seeded) localStorage.setItem('briefing-seeded', d.seeded);
+        if (d.sort) localStorage.setItem('briefing-sort', d.sort);
+        if (d.sources) localStorage.setItem('briefing-sources', JSON.stringify(d.sources));
+        location.reload();
+      }).catch(() => {});
     });
     document.body.appendChild(ov);
     openOverlay(() => ov.remove());
   });
 }
 
+// ---- ⚙ Sources: toggle each outlet, with who-owns-it context ----
+function openSources() {
+  const ov = document.createElement('div');
+  ov.id = 'sources';
+  let dirty = false;
+  const groups = CATS.filter(c => !['all', 'top', 'recent', 'saved'].includes(c.id));
+  ov.innerHTML = `
+    <button class="cu-close" aria-label="Close">✕</button>
+    <h1>Sources</h1>
+    <div class="sub">${FEEDS.length} available — toggle what goes into your feed. Notes cover ownership and independence, so you know who you're reading.</div>` +
+    groups.map(c => `<h2>${c.label}</h2>` + FEEDS.filter(f => f.cat === c.id).map(f => `
+      <div class="src-row">
+        <span class="dot" style="background:${f.color}"></span>
+        <div class="src-info"><b>${f.name}</b> <span class="lang-badge">${f.lang.toUpperCase()}</span>
+          <div class="src-about">${f.about}</div>
+        </div>
+        <label class="switch"><input type="checkbox" data-src="${f.name}"${srcEnabled(f.name) ? ' checked' : ''}></label>
+      </div>`).join('')).join('');
+  ov.addEventListener('change', e => {
+    const t = e.target.closest('[data-src]');
+    if (!t) return;
+    srcOverrides[t.dataset.src] = t.checked;
+    try { localStorage.setItem('briefing-sources', JSON.stringify(srcOverrides)); } catch (err) {}
+    dirty = true;
+  });
+  ov.addEventListener('click', e => { if (e.target.closest('.cu-close')) closeOverlay(); });
+  document.body.appendChild(ov);
+  openOverlay(() => {
+    ov.remove();
+    if (dirty) {
+      items = items.filter(i => srcEnabled(i.src));
+      rank();
+      render();
+      refresh();
+    }
+  });
+}
+
 function setItems(newItems, fetchedAt) {
   const seen = new Set();
   items = newItems
-    .filter(i => i.ts <= Date.now() + 3600e3)
+    .filter(i => i.ts <= Date.now() + 3600e3 && srcEnabled(i.src))
     .sort((a, b) => b.ts - a.ts)
     .filter(i => !seen.has(i.link) && seen.add(i.link));
   rank();
   lastFetch = fetchedAt;
   $updated.textContent = 'Updated ' + new Date(fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   render();
+  if (catchupOnBoot && items.length) { catchupOnBoot = false; openCatchup(); }
 }
+
+let feedHealth = [];
 
 async function refresh() {
   $refresh.classList.add('spinning');
   try {
-    const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+    const active = FEEDS.filter(f => srcEnabled(f.name));
+    const results = await Promise.allSettled(active.map(fetchFeed));
+    feedHealth = active.map((f, i) => ({ name: f.name, ok: results[i].status === 'fulfilled' && results[i].value.length > 0 }));
     const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
     if (all.length) {
       const fetchedAt = Date.now();

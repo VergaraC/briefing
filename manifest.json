@@ -8,5 +8,11 @@
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Top stories", "url": "./#top", "icons": [{ "src": "icon-180.png", "sizes": "180x180" }] },
+    { "name": "Catch-up", "url": "./#catchup", "icons": [{ "src": "icon-180.png", "sizes": "180x180" }] },
+    { "name": "Recent", "url": "./#recent", "icons": [{ "src": "icon-180.png", "sizes": "180x180" }] },
+    { "name": "Saved", "url": "./#saved", "icons": [{ "src": "icon-180.png", "sizes": "180x180" }] }
   ]
 }
