@@ -370,6 +370,12 @@
   .stat-row .bar { flex: 1; height: 9px; background: var(--card); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
   .stat-row .bar span { display: block; height: 100%; background: var(--accent); }
   .stat-row .n { width: 34px; text-align: right; color: var(--muted); }
+  .balance { display: flex; align-items: center; gap: 16px; margin: 6px 0 4px; }
+  .bal-num { font-size: 44px; font-weight: 800; line-height: 1; width: 66px; text-align: center; flex-shrink: 0; }
+  .bal-meta { flex: 1; min-width: 0; }
+  .bal-label { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .bal-bar { height: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 6px; }
+  .bal-bar span { display: block; height: 100%; }
   .wk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .item { -webkit-user-select: none; user-select: none; }
   .item a { -webkit-touch-callout: none; }
@@ -714,7 +720,16 @@ function classify(item) {
 
 // Cluster stories covered by multiple outlets (>=3 shared title keywords) and score every item.
 function rank() {
-  const brand = s => s.startsWith('G1') ? 'G1' : s.startsWith('BBC') ? 'BBC' : s === 'TC Startups' ? 'TechCrunch' : s;
+  // Normalize a source to its parent newsroom so one outlet's sub-feeds don't count as several
+  // (e.g. Guardian + Guardian Sport + Guardian Tennis = one "Guardian" for the multi-outlet signal).
+  const brand = s => {
+    if (s.startsWith('G1')) return 'G1';
+    if (s.startsWith('BBC')) return 'BBC';
+    if (s === 'The Guardian' || s.startsWith('Guardian')) return 'Guardian';
+    if (s === 'ge' || s.startsWith('ge ')) return 'ge';
+    if (s === 'TC Startups' || s === 'TechCrunch') return 'TechCrunch';
+    return s;
+  };
   items.forEach(i => { i.tk = tokens(i.title); i.brand = brand(i.src); i.topics = classify(i); });
 
   const parent = items.map((_, i) => i);
@@ -727,7 +742,7 @@ function rank() {
   }));
   const pairs = new Map();
   for (const arr of tokenMap.values()) {
-    if (arr.length < 2 || arr.length > 25) continue; // ignore tokens too common to mean one story
+    if (arr.length < 2 || arr.length > 10) continue; // ignore tokens shared by many stories (topic-level, e.g. "wimbledon") — they merge distinct stories
     for (let a = 0; a < arr.length; a++)
       for (let b = a + 1; b < arr.length; b++) {
         const k = arr[a] * 100000 + arr[b];
@@ -939,7 +954,10 @@ function toggleSave(link) {
 // 🔥 tap: every outlet's take on the same story, side by side.
 function openCoverage(cid) {
   if (document.getElementById('sheetwrap')) return;
-  const group = items.filter(x => x.cid === cid).sort((a, b) => b.ts - a.ts);
+  // One row per outlet (its latest take) so we compare across outlets, not within one.
+  const seenBrand = new Set();
+  const group = items.filter(x => x.cid === cid).sort((a, b) => b.ts - a.ts)
+    .filter(x => !seenBrand.has(x.brand) && seenBrand.add(x.brand));
   if (group.length < 2) return;
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const wrap = document.createElement('div');
@@ -1430,6 +1448,22 @@ function openStats() {
     const topWeek = [...wk].filter(([t, c]) => c.b.size >= 3 && !TREND_SKIP.has(t)).sort((a, b) => b[1].n - a[1].n).slice(0, 10);
     const catName = id => CATS.find(c => c.id === id)?.label || id;
     const ptPct = logs.length ? Math.round(100 * pt / logs.length) : 0;
+
+    // Balance score: how spread your reading is across ownership types (normalized entropy over
+    // the 4 kinds) and across distinct sources. 100 = you sample widely; low = a narrow diet.
+    const KINDS = ['corporate', 'independent', 'nonprofit', 'public'];
+    const rawKind = {};
+    logs.forEach(r => { const k = SRC_KIND[r.s] || 'corporate'; rawKind[k] = (rawKind[k] || 0) + 1; });
+    const kc = KINDS.map(k => rawKind[k] || 0);
+    const totK = kc.reduce((a, b) => a + b, 0);
+    let H = 0;
+    kc.forEach(c => { if (c > 0) { const p = c / totK; H -= p * Math.log2(p); } });
+    const diversity = totK ? H / 2 : 0; // log2(4) = 2
+    const breadth = Math.min(1, Object.keys(bySrc).length / 8);
+    const balance = Math.round(100 * (0.65 * diversity + 0.35 * breadth));
+    const balLabel = balance >= 70 ? 'Well balanced' : balance >= 45 ? 'Fairly balanced' : balance >= 25 ? 'A bit narrow' : 'One-sided';
+    const balColor = balance >= 70 ? '#22c55e' : balance >= 45 ? '#84cc16' : balance >= 25 ? '#f59e0b' : '#ef4444';
+
     const ov = document.createElement('div');
     ov.id = 'stats';
     ov.innerHTML = `
@@ -1438,6 +1472,14 @@ function openStats() {
       <div class="sub">Last 7 days · lives only on this device</div>
       ${logs.length ? `
         <h2>${logs.length} stories read</h2>
+        <div class="balance">
+          <div class="bal-num" style="color:${balColor}">${balance}</div>
+          <div class="bal-meta">
+            <div class="bal-label">${balLabel} media diet</div>
+            <div class="bal-bar"><span style="width:${balance}%;background:${balColor}"></span></div>
+            <div class="sub">Spread across ownership types &amp; sources${logs.length < 8 ? ' — read a few more to sharpen this' : ''}.</div>
+          </div>
+        </div>
         <h2>By topic</h2>${bars(byCat, catName)}
         <h2>By source</h2>${bars(bySrc)}
         <h2>Language</h2>
