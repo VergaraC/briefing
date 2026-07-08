@@ -484,7 +484,8 @@ const FEEDS = [
   { name: 'MIT Tech Review',cat: 'tech',     color: '#10a5a0', lang: 'en', def: false, url: 'https://www.technologyreview.com/feed/',
     about: 'Owned by MIT. Authoritative on AI research and emerging tech; some articles metered.' },
   { name: 'Wired',          cat: 'tech',     color: '#94a3b8', lang: 'en', def: false, url: 'https://www.wired.com/feed/rss',
-    about: 'Condé Nast\'s tech culture magazine. Big features and ideas; metered paywall on some stories.' },
+    skipCat: /deal|coupon|buying guide|discount|promo|shopping|best .* of/i,
+    about: 'Condé Nast\'s tech culture magazine. Big features and ideas; metered paywall on some stories. (Shopping/coupon/deals content is filtered out.)' },
   { name: '404 Media',      cat: 'tech',     color: '#00c08b', lang: 'en', def: false, url: 'https://www.404media.co/rss/',
     about: 'Worker-owned co-op founded by ex-Vice Motherboard journalists. Sharp investigations on AI, privacy and platforms; some posts ask for a free account.' },
   { name: 'VentureBeat',    cat: 'tech',     color: '#2563eb', lang: 'en', def: false, url: 'https://venturebeat.com/feed/',
@@ -507,8 +508,8 @@ const FEEDS = [
     about: 'US business network owned by Comcast/NBCUniversal. Wire-level speed on markets and corporate news.' },
   { name: 'Brazil Journal', cat: 'business', color: '#0f766e', lang: 'pt', url: 'https://braziljournal.com/feed/',
     about: 'Independent Brazilian financial site founded by journalists Geraldo Samor and Pedro Arbex. The Faria Lima crowd\'s morning read.' },
-  { name: 'InfoMoney',      cat: 'business', color: '#ff8700', lang: 'pt', url: 'https://www.infomoney.com.br/feed/', skip: /\/(esportes|consumo|mundo|politica|cultura|turismo|saude)\//,
-    about: 'Brazil\'s largest finance portal, owned by broker XP Inc. Strong markets coverage — keep the ownership in mind on investment-product stories.' },
+  { name: 'InfoMoney',      cat: 'business', color: '#ff8700', lang: 'pt', url: 'https://www.infomoney.com.br/feed/', skip: /\/(esportes|consumo|mundo|cultura|turismo|saude)\//,
+    about: 'Brazil\'s largest finance portal, owned by broker XP Inc. Strong markets coverage — keep the ownership in mind on investment-product stories. (Sports/lottery/lifestyle filtered out.)' },
   { name: 'Bloomberg Línea',cat: 'business', color: '#84cc16', lang: 'pt', url: 'https://www.bloomberglinea.com.br/arc/outboundfeeds/rss/?outputType=xml',
     about: 'Bloomberg\'s Latin America venture. Wire-quality business news in Portuguese, free.' },
   { name: 'Money Times',    cat: 'business', color: '#eab308', lang: 'pt', url: 'https://www.moneytimes.com.br/feed/',
@@ -573,7 +574,7 @@ const PROXIES = [
 ];
 
 const MAX_PER_FEED = 15;
-const CACHE_KEY = 'briefing-cache-v10';
+const CACHE_KEY = 'briefing-cache-v11';
 
 // Per-source on/off overrides (⚙ Sources). Sources with def:false start disabled.
 let srcOverrides = {};
@@ -735,15 +736,18 @@ async function fetchFeed(feed) {
       const text = await res.text();
       const doc = new DOMParser().parseFromString(text, 'text/xml');
       if (doc.querySelector('parsererror')) continue;
-      // RSS <item> or Atom <entry>
-      const nodes = [...doc.querySelectorAll('item, entry')].slice(0, MAX_PER_FEED);
-      return nodes.map((n, pos) => {
+      // RSS <item> or Atom <entry>. Filter first, then cap — so junk-heavy feeds keep their good items.
+      const parsed = [...doc.querySelectorAll('item, entry')].map((n, pos) => {
         const title = n.querySelector('title')?.textContent?.trim();
         let link = n.querySelector('link')?.getAttribute('href') // Atom
                 || n.querySelector('link')?.textContent?.trim();  // RSS
         const dateStr = n.querySelector('pubDate, published, updated')?.textContent;
         const ts = dateStr ? Date.parse(dateStr) : Date.now();
         if (feed.skip && link && feed.skip.test(link)) return null;
+        if (feed.skipCat) {
+          const cats = [...n.querySelectorAll('category')].map(c => c.textContent).join(' | ');
+          if (feed.skipCat.test(cats) || feed.skipCat.test(title || '')) return null;
+        }
         const rawDesc = n.querySelector('description, summary')?.textContent || '';
         let img = n.getElementsByTagName('media:content')[0]?.getAttribute('url')
                || n.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url')
@@ -759,10 +763,11 @@ async function fetchFeed(feed) {
           .replace(/\s+/g, ' ').trim().slice(0, 280);
         if (/^(article url|comments url|points)/i.test(desc) || desc === title) desc = ''; // drop boilerplate (e.g. Hacker News)
         return title && link ? { title, link, desc, img, ts: isNaN(ts) ? Date.now() : ts, src: feed.name, cat: feed.cat, color: feed.color, pos } : null;
-      }).filter(Boolean);
+      }).filter(Boolean).slice(0, MAX_PER_FEED);
+      return { ok: true, items: parsed }; // fetch+parse worked, even if filters left 0 items
     } catch (e) { /* try next proxy */ }
   }
-  return [];
+  return { ok: false, items: [] }; // every proxy failed
 }
 
 // What belongs in the current view: ⭐ Top = multi-outlet stories, 🕐 Recent = last 3 hours.
@@ -1366,7 +1371,7 @@ function openStats() {
         `<span class="chip">${t} · ${c.n}</span>`).join('')}</div>` : ''}
       ${muted.size ? `<h2>Muted topics — tap to unmute</h2><div class="wk-chips">${[...muted].map(t =>
         `<button class="chip" data-unmute="${t}">🚫 ${t} ✕</button>`).join('')}</div>` : ''}
-      ${feedHealth.length ? `<h2>Source health</h2><div class="sub">${feedHealth.filter(h => h.ok).length}/${feedHealth.length} sources loaded on the last refresh${feedHealth.some(h => !h.ok) ? ' — failed: ' + feedHealth.filter(h => !h.ok).map(h => h.name).join(', ') : ''}</div>` : ''}
+      ${feedHealth.length ? `<h2>Source health</h2><div class="sub">${feedHealth.filter(h => h.ok).length}/${feedHealth.length} sources reached on the last refresh${feedHealth.some(h => !h.ok) ? '.<br>⚠️ Could not reach: ' + feedHealth.filter(h => !h.ok).map(h => h.name).join(', ') : ''}${feedHealth.some(h => h.ok && !h.count) ? '.<br>Reached but no new stories: ' + feedHealth.filter(h => h.ok && !h.count).map(h => h.name).join(', ') : ''}</div>` : ''}
       <h2>Backup</h2>
       <div class="sub">Your taste profile, saved stories, mutes and history — as a file you can import on another device.</div>
       <div class="wk-chips" style="margin-top:10px"><button class="chip" data-export>⬇ Export my data</button><button class="chip" data-import>⬆ Import</button></div>
@@ -1471,8 +1476,11 @@ async function refresh() {
   try {
     const active = FEEDS.filter(f => srcEnabled(f.name));
     const results = await Promise.allSettled(active.map(fetchFeed));
-    feedHealth = active.map((f, i) => ({ name: f.name, ok: results[i].status === 'fulfilled' && results[i].value.length > 0 }));
-    const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    feedHealth = active.map((f, i) => {
+      const v = results[i].status === 'fulfilled' ? results[i].value : { ok: false, items: [] };
+      return { name: f.name, ok: v.ok, count: v.items.length };
+    });
+    const all = results.flatMap(r => r.status === 'fulfilled' ? r.value.items : []);
     if (all.length) {
       const fetchedAt = Date.now();
       setItems(all, fetchedAt);
