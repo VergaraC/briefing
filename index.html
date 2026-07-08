@@ -574,7 +574,7 @@ const PROXIES = [
 ];
 
 const MAX_PER_FEED = 15;
-const CACHE_KEY = 'briefing-cache-v11';
+const CACHE_KEY = 'briefing-cache-v12';
 
 // Per-source on/off overrides (⚙ Sources). Sources with def:false start disabled.
 let srcOverrides = {};
@@ -644,10 +644,40 @@ function tokens(title) {
     .filter(w => w.length > 3 && !/^\d+$/.test(w) && !STOP.has(w)))];
 }
 
+// Topic classification: a story shows up in EVERY topic tab it fits (by section URL and
+// title keywords), not just its source's home tab. Its source's tab always stays included.
+const TOPIC_TOKENS = {
+  tech: new Set(['tecnologia', 'technology', 'openai', 'anthropic', 'chatgpt', 'gemini', 'nvidia', 'software',
+    'hardware', 'aplicativo', 'aplicativos', 'smartphone', 'iphone', 'android', 'semicondutor', 'semiconductor',
+    'algoritmo', 'hacker', 'hackers', 'cyber', 'ciberseguranca', 'robot', 'robos', 'robotica', 'robotics',
+    'streaming', 'blockchain', 'gadget', 'gadgets', 'apple', 'microsoft', 'google', 'samsung', 'intel', 'quantum',
+    'chips', 'deepmind', 'copilot', 'inteligencia', 'artificial', 'spacex', 'tesla', 'instagram', 'facebook',
+    'whatsapp', 'zuckerberg', 'threads', 'youtube', 'tiktok']),
+  startups: new Set(['startup', 'startups', 'venture', 'funding', 'fundraising', 'rodada', 'aporte', 'aportes',
+    'unicornio', 'acelerador', 'aceleradora', 'seed', 'fintechs']),
+  business: new Set(['economia', 'economy', 'bolsa', 'ibovespa', 'dolar', 'acoes', 'juros', 'selic', 'inflacao',
+    'inflation', 'nasdaq', 'stocks', 'lucro', 'earnings', 'receita', 'faturamento', 'mercado', 'mercados', 'banco',
+    'bancos', 'fintech', 'investimento', 'investimentos', 'petrobras', 'ipca', 'tarifa', 'tarifaco', 'dividendos',
+    'economic', 'economico', 'economica', 'tariff', 'tariffs', 'stock', 'shares', 'revenue', 'profit']),
+};
+const TOPIC_URL = {
+  tech: /\/(tecnologia|technology|tech|gadgets?)\//,
+  business: /\/(economia|economy|business|mercados?|markets?|financ|money|dinheiro|investi)\//,
+  world: /\/(mundo|world|internacional|international)\//,
+};
+
+function classify(item) {
+  const topics = new Set([item.cat]); // source's home tab always applies
+  const url = item.link.toLowerCase();
+  for (const t in TOPIC_URL) if (TOPIC_URL[t].test(url)) topics.add(t);
+  for (const t in TOPIC_TOKENS) if (item.tk.some(tok => TOPIC_TOKENS[t].has(tok))) topics.add(t);
+  return topics;
+}
+
 // Cluster stories covered by multiple outlets (>=3 shared title keywords) and score every item.
 function rank() {
   const brand = s => s.startsWith('G1') ? 'G1' : s.startsWith('BBC') ? 'BBC' : s === 'TC Startups' ? 'TechCrunch' : s;
-  items.forEach(i => { i.tk = tokens(i.title); i.brand = brand(i.src); });
+  items.forEach(i => { i.tk = tokens(i.title); i.brand = brand(i.src); i.topics = classify(i); });
 
   const parent = items.map((_, i) => i);
   const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
@@ -776,7 +806,7 @@ function catFilter(i) {
   if (activeCat === 'top') return i.srcN > 1;
   if (activeCat === 'recent') return Date.now() - i.ts <= 3 * 3600e3;
   if (activeCat === 'saved') return !!savedStore[i.link];
-  return i.cat === activeCat;
+  return i.topics ? i.topics.has(activeCat) : i.cat === activeCat;
 }
 
 function render() {
@@ -1096,7 +1126,7 @@ function switchTab(dir) {
 function openCatchup() {
   const slides = [];
   CATS.filter(c => !['all', 'top', 'recent', 'saved'].includes(c.id)).forEach(c => {
-    const pool = items.filter(i => i.cat === c.id && !isMuted(i)).sort((a, b) => b.score - a.score);
+    const pool = items.filter(i => (i.topics ? i.topics.has(c.id) : i.cat === c.id) && !isMuted(i)).sort((a, b) => b.score - a.score);
     const pick = pool.find(i => !read.has(i.link)) || pool[0];
     if (pick) slides.push(pick);
   });
